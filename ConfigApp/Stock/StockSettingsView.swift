@@ -69,16 +69,21 @@ struct StockSettingsView: View {
                     HStack(spacing: 10) {
                         Image(systemName: "line.3.horizontal").foregroundStyle(.tertiary)
                         StockKindBadge(kind: item.kind, label: item.kind.title)
-                        VStack(alignment: .leading, spacing: 2) {
-                            TextField("Name", text: $item.name)
-                                .textFieldStyle(.plain)
+                        // Name = fette erste Zeile im Widget, Untertitel = graue zweite Zeile.
+                        VStack(alignment: .leading, spacing: 4) {
+                            TextField("Name", text: $item.name, prompt: Text("Name im Widget"))
+                                .textFieldStyle(.roundedBorder)
                                 .font(.body.weight(.semibold))
-                            Text("\(item.detail) · \(item.isin)")
+                                .help("Fetter Name in der ersten Zeile des Widgets")
+                            TextField("Untertitel", text: $item.detail, prompt: Text("Untertitel (grau)"))
+                                .textFieldStyle(.roundedBorder)
                                 .font(.caption)
+                                .help("Graue zweite Zeile im Widget")
+                            Text(item.isin)
+                                .font(.caption2.monospaced())
                                 .foregroundStyle(.secondary)
-                                .lineLimit(1)
                         }
-                        Spacer()
+                        .frame(maxWidth: .infinity, alignment: .leading)
                         VStack(alignment: .trailing, spacing: 2) {
                             Text("Kaufkurs").font(.caption2).foregroundStyle(.secondary)
                             HStack(spacing: 3) {
@@ -131,7 +136,7 @@ struct StockSettingsView: View {
             .frame(minHeight: 160, maxHeight: .infinity)
 
             HStack {
-                Text("Reihenfolge per Drag & Drop, Namen per Klick umbenennen, Kaufkurs in € pro Stück.")
+                Text("Reihenfolge per Drag & Drop. Name, Untertitel und Kaufkurs (€ pro Stück) direkt in der Zeile ändern.")
                     .font(.caption)
                     .foregroundStyle(.secondary)
                 Spacer()

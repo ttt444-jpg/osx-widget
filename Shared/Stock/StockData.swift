@@ -95,6 +95,36 @@ enum StockStore {
     }
 }
 
+// MARK: - Zeitraum der Kurve
+
+enum Period: String, CaseIterable, Codable, Sendable {
+    case day, week, month, ytd, year, fiveYears
+
+    var short: String {
+        switch self {
+        case .day: "Heute"
+        case .week: "1W"
+        case .month: "1M"
+        case .ytd: "YTD"
+        case .year: "1J"
+        case .fiveYears: "5J"
+        }
+    }
+
+    /// Beginn des Zeitraums; `nil` heißt „Tagesverlauf seit Vortagesschluss“.
+    func start(from now: Date) -> Date? {
+        let cal = Calendar(identifier: .gregorian)
+        switch self {
+        case .day: return nil
+        case .week: return cal.date(byAdding: .day, value: -7, to: now)
+        case .month: return cal.date(byAdding: .month, value: -1, to: now)
+        case .ytd: return cal.date(from: cal.dateComponents([.year], from: now))
+        case .year: return cal.date(byAdding: .year, value: -1, to: now)
+        case .fiveYears: return cal.date(byAdding: .year, value: -5, to: now)
+        }
+    }
+}
+
 // MARK: - Kurs
 
 struct StockQuote: Identifiable, Hashable {
@@ -103,25 +133,26 @@ struct StockQuote: Identifiable, Hashable {
     let detail: String
     let kind: AssetKind
     let price: Double
-    /// Schlusskurs des Vortags, für die gestrichelte Linie und als Ersatz ohne Kaufkurs.
-    let previousClose: Double?
+    /// Vergleichskurs: Vortagesschluss bzw. Kurs zu Beginn des Zeitraums.
+    /// Gestrichelte Linie in der Kurve und Ersatz, wenn kein Kaufkurs eingetragen ist.
+    let reference: Double?
     let buyIn: Double?
-    /// Tagesverlauf (beginnend mit dem Vortagesschluss), für die Kurve.
+    /// Kursverlauf im Zeitraum (beginnend mit dem Vergleichskurs), für die Kurve.
     let points: [Double]
     let updated: Date
 
     var id: String { isin }
 
-    /// Veränderung seit Kauf, sonst seit Vortag – in € pro Stück …
+    /// Veränderung seit Kauf, sonst seit dem Vergleichskurs – in € pro Stück …
     var gainAbs: Double? {
         if let buyIn { return price - buyIn }
-        return previousClose.map { price - $0 }
+        return reference.map { price - $0 }
     }
 
     /// … und relativ. Bestimmt Farbe, Pfeil und Sortierung.
     var gain: Double? {
         if let buyIn, buyIn > 0 { return price / buyIn - 1 }
-        return previousClose.map { price / $0 - 1 }
+        return reference.map { price / $0 - 1 }
     }
 
     var hasBuyIn: Bool { buyIn != nil }
@@ -231,10 +262,10 @@ enum StockFetcher {
     }
 
     /// Alle Werte parallel laden; die Reihenfolge der Watchlist bleibt erhalten.
-    static func fetchAll(_ items: [WatchItem]) async -> WatchResult {
+    static func fetchAll(_ items: [WatchItem], period: Period = .day) async -> WatchResult {
         let results = await withTaskGroup(of: (Int, StockQuote?).self) { group in
             for (i, item) in items.enumerated() {
-                group.addTask { (i, try? await fetch(item)) }
+                group.addTask { (i, try? await fetch(item, period: period)) }
             }
             var out = [(Int, StockQuote?)]()
             for await r in group { out.append(r) }
@@ -245,7 +276,7 @@ enum StockFetcher {
         return WatchResult(quotes: quotes, failed: failed, date: .now)
     }
 
-    static func fetch(_ item: WatchItem) async throws -> StockQuote {
+    static func fetch(_ item: WatchItem, period: Period = .day) async throws -> StockQuote {
         let id = try await lookup(item.isin)
         let chart: ChartResponse = try await get("instrument/chart/dataForInstrument?instrumentId=\(id)")
 
@@ -259,10 +290,18 @@ enum StockFetcher {
         let history = points("history")
         guard let last = intraday.last ?? history.last else { throw FetchError.noData(item.isin) }
 
-        let prevClose = chart.info?.plotlines?.first(where: { $0.id == "previousDay" })?.value
-            ?? history.dropLast().last?.price
-        var series = intraday.map(\.price)
-        if let prevClose { series.insert(prevClose, at: 0) }
+        let reference: Double?
+        var series: [Double]
+        if let start = period.start(from: .now) {
+            let slice = history.filter { $0.date >= start }
+            reference = history.last(where: { $0.date <= start })?.price ?? slice.first?.price
+            series = slice.map(\.price)
+        } else {
+            reference = chart.info?.plotlines?.first(where: { $0.id == "previousDay" })?.value
+                ?? history.dropLast().last?.price
+            series = intraday.map(\.price)
+            if let reference { series.insert(reference, at: 0) }
+        }
         if series.last != last.price { series.append(last.price) }
 
         return StockQuote(
@@ -271,7 +310,7 @@ enum StockFetcher {
             detail: item.detail,
             kind: item.kind,
             price: last.price,
-            previousClose: prevClose,
+            reference: reference,
             buyIn: item.buyIn,
             points: downsample(series, to: 90),
             updated: last.date
@@ -312,16 +351,16 @@ enum StockFetcher {
     static let sample = WatchResult(
         quotes: [
             StockQuote(isin: "IE00B4L5Y983", name: "MSCI World", detail: "iShares Core MSCI World", kind: .etf,
-                       price: 126.78, previousClose: 125.90, buyIn: 98.50,
+                       price: 126.78, reference: 125.90, buyIn: 98.50,
                        points: [125.9, 126.1, 125.8, 126.3, 126.5, 126.4, 126.78], updated: .now),
             StockQuote(isin: "US67066G1040", name: "NVIDIA", detail: "NVIDIA Corp.", kind: .stock,
-                       price: 170.14, previousClose: 169.34, buyIn: 182.00,
+                       price: 170.14, reference: 169.34, buyIn: 182.00,
                        points: [169.3, 169.9, 169.5, 170.4, 170.0, 170.14], updated: .now),
             StockQuote(isin: "IE00B5BMR087", name: "S&P 500", detail: "iShares Core S&P 500", kind: .etf,
-                       price: 642.10, previousClose: 636.55, buyIn: 540.00,
+                       price: 642.10, reference: 636.55, buyIn: 540.00,
                        points: [636.5, 638.0, 637.2, 640.4, 641.0, 642.1], updated: .now),
             StockQuote(isin: "IE00BKM4GZ66", name: "MSCI EM IMI", detail: "iShares Core MSCI EM IMI", kind: .etf,
-                       price: 39.12, previousClose: 39.40, buyIn: nil,
+                       price: 39.12, reference: 39.40, buyIn: nil,
                        points: [39.4, 39.3, 39.35, 39.2, 39.1, 39.12], updated: .now),
         ],
         failed: [], date: .now

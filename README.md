@@ -4,7 +4,7 @@ Eine Sammlung nativer macOS-Desktop-Widgets (SwiftUI + WidgetKit) und **eine Con
 
 | Widget | Zeigt | Einstellungen |
 |---|---|---|
-| **Stock** | ETF- und Aktienkurse wie bei Trade Republic (Kurse von Lang & Schwarz), Gewinn/Verlust seit Kauf | Watchlist und Kaufkurse in der Config-App · Filter und Sortierung am Widget |
+| **Stock** | ETF- und Aktienkurse wie bei Trade Republic (Kurse von Lang & Schwarz), Gewinn/Verlust seit Kauf | Watchlist und Kaufkurse in der Config-App · Filter, Zeitraum und Sortierung am Widget |
 
 ## Aufbau
 
@@ -60,7 +60,7 @@ Beispiel „Wetter“:
 Konventionen:
 - Typnamen mit Widget-Präfix (`WeatherRow`, `WeatherProvider`), weil alle Widgets in einem Modul liegen.
 - Schlüssel im `SharedStore` mit Präfix (`weather.…`).
-- Was für alle Instanzen gilt (Listen, Zugangsdaten), gehört in die Config-App. Was pro Widget-Instanz verschieden sein darf (z. B. Filter), gehört in den `WidgetConfigurationIntent`.
+- Was für alle Instanzen gilt (Listen, Zugangsdaten), gehört in die Config-App. Was pro Widget-Instanz verschieden sein darf (z. B. Filter, Zeitraum), gehört in den `WidgetConfigurationIntent`.
 
 ---
 
@@ -83,16 +83,17 @@ Zeigt Kurse deiner ETFs und Aktien. Die Kurse kommen von **Lang & Schwarz**, dem
   iShares Core MSCI World                   +28,28 €
 ```
 
-- **Kurve:** der Tagesverlauf. Die gestrichelte Linie zeigt den Schlusskurs vom Vortag.
+- **Kurve:** standardmäßig der Tagesverlauf, umstellbar am Widget (1 Woche bis 5 Jahre). Die gestrichelte Linie zeigt den Vergleichskurs: Vortagesschluss bzw. Kurs zu Beginn des Zeitraums.
 - **Rechts oben:** aktueller Kurs in €
 - **Rechts unten:** Gewinn oder Verlust pro Stück seit Kauf in €
-- **Farbe** von Pfeil, Kurve und Betrag: grün über dem Kaufkurs, rot darunter. Ohne Kaufkurs gilt die Veränderung zum Vortag.
+- **Farbe** von Pfeil, Kurve und Betrag: grün über dem Kaufkurs, rot darunter. Ohne Kaufkurs gilt die Veränderung zum Vergleichskurs.
 
 **Am Widget** (Rechtsklick → bearbeiten):
 
 | Option | Werte |
 |---|---|
 | Anzeigen | Alle · Nur ETFs · Nur Aktien |
+| Zeitraum der Kurve | Heute · 1 Woche · 1 Monat · Seit Jahresbeginn · 1 Jahr · 5 Jahre |
 | Nach Gewinn sortieren | an/aus (größter Gewinn seit Kauf oben) |
 
 | Größe | Inhalt |

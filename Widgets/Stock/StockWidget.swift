@@ -6,6 +6,18 @@ import WidgetKit
 // MARK: - Einstellungen (Rechtsklick auf das Widget → „Widget bearbeiten“)
 // Welche Werte drin sind, verwaltest du in der Config-App „OSX Widgets“ → Stock.
 
+extension Period: AppEnum {
+    static var typeDisplayRepresentation: TypeDisplayRepresentation = "Zeitraum"
+    static var caseDisplayRepresentations: [Period: DisplayRepresentation] = [
+        .day: "Heute",
+        .week: "1 Woche",
+        .month: "1 Monat",
+        .ytd: "Seit Jahresbeginn",
+        .year: "1 Jahr",
+        .fiveYears: "5 Jahre",
+    ]
+}
+
 enum StockKindFilter: String, AppEnum {
     case all, etf, stock
 
@@ -31,6 +43,9 @@ struct StockConfigIntent: WidgetConfigurationIntent {
 
     @Parameter(title: "Anzeigen", default: .all)
     var filter: StockKindFilter
+
+    @Parameter(title: "Zeitraum der Kurve", default: .day)
+    var period: Period
 
     @Parameter(title: "Nach Gewinn sortieren", default: false)
     var sortByGain: Bool
@@ -72,7 +87,7 @@ struct StockProvider: AppIntentTimelineProvider {
 
     private func load(_ config: StockConfigIntent) async -> StockEntry {
         let items = StockStore.load().filter { config.filter.matches($0.kind) }
-        var result = await StockFetcher.fetchAll(items)
+        var result = await StockFetcher.fetchAll(items, period: config.period)
         if config.sortByGain {
             result = WatchResult(
                 quotes: result.quotes.sorted { ($0.gain ?? -.infinity) > ($1.gain ?? -.infinity) },
@@ -140,7 +155,7 @@ struct StockEntryView: View {
 // MARK: - Zeilen
 
 /// Eine Zeile wie in der Aktien-App:
-/// ▼ Name           ~~Tagesverlauf~~      Kurs €
+/// ▼ Name           ~~Kurve~~             Kurs €
 ///   voller Name                 ± seit Kauf €
 /// Grün/Rot richtet sich nach dem Kaufkurs (ohne Kaufkurs: nach dem Vortag).
 struct StockRow: View {
@@ -162,7 +177,7 @@ struct StockRow: View {
             }
             .frame(maxWidth: .infinity, alignment: .leading)
 
-            StockSparkline(values: q.points, reference: q.previousClose, color: Theme.trend(q.gain))
+            StockSparkline(values: q.points, reference: q.reference, color: Theme.trend(q.gain))
                 .frame(width: 64)
                 .padding(.vertical, 5)
 
@@ -227,7 +242,7 @@ struct StockTrendArrow: View {
     }
 }
 
-/// Tagesverlauf mit Fläche darunter und gestrichelter Linie beim Vortagesschluss.
+/// Kursverlauf mit Fläche darunter und gestrichelter Linie beim Vergleichskurs.
 struct StockSparkline: View {
     @Environment(\.widgetRenderingMode) private var renderingMode
     let values: [Double]

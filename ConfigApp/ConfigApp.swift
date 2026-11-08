@@ -6,8 +6,11 @@ struct ConfigApp: App {
     var body: some Scene {
         WindowGroup("OSX Widgets") {
             RootView()
-                .frame(minWidth: 760, minHeight: 640)
+                // Inhalt füllt das Fenster. Achtung in Einstellungsseiten: kein
+                // .fixedSize(vertical: true) auf langen Texten – siehe README „Konventionen“.
+                .frame(minWidth: 760, maxWidth: .infinity, minHeight: 600, maxHeight: .infinity)
         }
+        .defaultSize(width: 900, height: 720)
     }
 }
 

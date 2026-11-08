@@ -21,7 +21,9 @@ struct StockSettingsView: View {
             Text("ETF- und Aktienkurse wie bei Trade Republic (Lang & Schwarz). Trag pro Wert deinen Kaufkurs ein: Danach richtet sich, ob das Widget Grün oder Rot zeigt, und rechts steht der Gewinn bzw. Verlust pro Stück. Widget hinzufügen: Rechtsklick auf den Schreibtisch → „Widgets bearbeiten“ → Stock-Widget.")
                 .font(.callout)
                 .foregroundStyle(.secondary)
-                .fixedSize(horizontal: false, vertical: true)
+                // Kein .fixedSize(vertical: true): Die Split-Ansicht misst ihre Mindestgröße
+                // mit fast null Breite, der Text würde dann tausende Punkt hoch.
+                .lineLimit(4)
 
             // Suche
             HStack {
@@ -124,6 +126,9 @@ struct StockSettingsView: View {
                 }
             }
             .listStyle(.bordered)
+            // Ohne Begrenzung meldet die Liste ihre volle Inhaltshöhe als Mindesthöhe
+            // und schiebt den Fensterinhalt aus dem sichtbaren Bereich.
+            .frame(minHeight: 160, maxHeight: .infinity)
 
             HStack {
                 Text("Reihenfolge per Drag & Drop, Namen per Klick umbenennen, Kaufkurs in € pro Stück.")
@@ -138,6 +143,7 @@ struct StockSettingsView: View {
             }
         }
         .padding(20)
+        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
         .task {
             items = await Task.detached { StockStore.load() }.value
             loaded = true

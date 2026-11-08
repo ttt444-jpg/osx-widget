@@ -60,6 +60,7 @@ Beispiel „Wetter“:
 Konventionen:
 - Typnamen mit Widget-Präfix (`WeatherRow`, `WeatherProvider`), weil alle Widgets in einem Modul liegen.
 - Schlüssel im `SharedStore` mit Präfix (`weather.…`).
+- Einstellungsseiten: kein `.fixedSize(horizontal: false, vertical: true)` auf langen Texten. Die Split-Ansicht misst ihre Mindestgröße mit fast null Breite, der Text wird dann tausende Punkt hoch und das Fenster wirkt leer. Stattdessen `.lineLimit(n)`. Listen mit `.frame(minHeight: …, maxHeight: .infinity)` begrenzen.
 - Was für alle Instanzen gilt (Listen, Zugangsdaten), gehört in die Config-App. Was pro Widget-Instanz verschieden sein darf (z. B. Filter, Zeitraum), gehört in den `WidgetConfigurationIntent`.
 
 ---

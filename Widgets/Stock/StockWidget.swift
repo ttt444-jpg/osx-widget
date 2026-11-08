@@ -155,7 +155,7 @@ struct StockEntryView: View {
                             StockRow(q: q, style: entry.style, period: entry.result.period)
                         }
                         if i < quotes.count - 1 {
-                            Rectangle().fill(Theme.divider).frame(height: 0.5)
+                            Rectangle().fill(Theme.text.opacity(0.14)).frame(height: 1)
                         }
                     }
                     if quotes.count < rows { Spacer(minLength: 0) }
@@ -246,8 +246,13 @@ struct StockTrendArrow: View {
     let change: Double?
     let size: CGFloat
 
+    private var symbol: String {
+        guard let change, abs(change) >= 0.00005 else { return "minus" }
+        return change > 0 ? "arrowtriangle.up.fill" : "arrowtriangle.down.fill"
+    }
+
     var body: some View {
-        Image(systemName: (change ?? 0) >= 0 ? "arrowtriangle.up.fill" :"arrowtriangle.down.fill")
+        Image(systemName: symbol)
             .resizable()
             .scaledToFit()
             .frame(width: size, height: size)
@@ -257,6 +262,7 @@ struct StockTrendArrow: View {
 
 /// Verlauf mit Fläche darunter und gestrichelter Linie beim Vergleichskurs.
 struct StockSparkline: View {
+    @Environment(\.widgetRenderingMode) private var renderingMode
     let values: [Double]
     let reference: Double?
     let color: Color
@@ -264,15 +270,21 @@ struct StockSparkline: View {
     var body: some View {
         let all = values + (reference.map { [$0] } ?? [])
         if values.count > 1, let lo = all.min(), let hi = all.max() {
-            let pad = (hi - lo) * 0.08 + 0.0001
-            let floor = lo - pad
+            // Mindestens 1 % des Kurses als Höhe, sonst wirken Cent-Bewegungen wie Sprünge
+            // und flache Kurse füllen das ganze Chart.
+            let mid = (lo + hi) / 2
+            let span = max(hi - lo, abs(mid) * 0.01, 0.0001) * 1.15
+            let floor = mid - span / 2
             Chart {
                 ForEach(Array(values.enumerated()), id: \.offset) { i, v in
-                    AreaMark(x: .value("t", i), yStart: .value("min", floor), yEnd: .value("Kurs", v))
-                        .foregroundStyle(
-                            LinearGradient(colors: [color.opacity(0.45), color.opacity(0)],
-                                           startPoint: .top, endPoint: .bottom)
-                        )
+                    // Im Monochrom-Modus („Vibrant“) wird die Fläche zum grauen Block, daher nur in Farbe.
+                    if renderingMode == .fullColor {
+                        AreaMark(x: .value("t", i), yStart: .value("min", floor), yEnd: .value("Kurs", v))
+                            .foregroundStyle(
+                                LinearGradient(colors: [color.opacity(0.45), color.opacity(0)],
+                                               startPoint: .top, endPoint: .bottom)
+                            )
+                    }
                     LineMark(x: .value("t", i), y: .value("Kurs", v))
                         .foregroundStyle(color)
                         .lineStyle(StrokeStyle(lineWidth: 1.4, lineCap: .round, lineJoin: .round))
@@ -287,7 +299,7 @@ struct StockSparkline: View {
             .chartYAxis(.hidden)
             .chartLegend(.hidden)
             .chartXScale(domain: 0...(values.count - 1))
-            .chartYScale(domain: floor...(hi + pad))
+            .chartYScale(domain: floor...(floor + span))
         } else {
             Color.clear
         }

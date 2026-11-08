@@ -12,10 +12,10 @@ enum Theme {
     static let red = Color(hex: 0xF26D6D)
     static let blue = Color(hex: 0x6EA8FE)
 
-    /// Grün bei Plus, Rot bei Minus, Grau ohne Wert.
+    /// Grün bei Plus, Rot bei Minus, Grau ohne Wert oder ohne Veränderung.
     static func trend(_ change: Double?) -> Color {
-        guard let change else { return muted }
-        return change >= 0 ? green : red
+        guard let change, abs(change) >= 0.00005 else { return muted }
+        return change > 0 ? green : red
     }
 }
 

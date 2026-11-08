@@ -4,7 +4,10 @@ import WidgetKit
 /// Watchlist verwalten: suchen und hinzufügen, löschen, sortieren, umbenennen, Kaufkurs eintragen.
 /// Jede Änderung wird sofort gespeichert und die Widgets neu geladen.
 struct StockSettingsView: View {
-    @State private var items: [WatchItem] = StockStore.load()
+    // Wird im Hintergrund geladen: Der erste Zugriff auf die App Group kann eine
+    // Rückfrage von macOS auslösen und würde sonst den Fensteraufbau blockieren.
+    @State private var items: [WatchItem] = []
+    @State private var loaded = false
     @State private var quotes: [String: StockQuote] = [:]
     @State private var query = ""
     @State private var hits: [SearchHit] = []
@@ -135,8 +138,12 @@ struct StockSettingsView: View {
             }
         }
         .padding(20)
-        .task { await loadQuotes() }
-        .onChange(of: items) { _, _ in save() }
+        .task {
+            items = await Task.detached { StockStore.load() }.value
+            loaded = true
+            await loadQuotes()
+        }
+        .onChange(of: items) { _, _ in if loaded { save() } }
     }
 
     private func search() async {
@@ -166,6 +173,7 @@ struct StockSettingsView: View {
     }
 
     private func save() {
+        guard loaded else { return }
         StockStore.save(items)
     }
 

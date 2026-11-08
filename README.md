@@ -22,7 +22,7 @@ osx-widget/
     └── Stock/StockData.swift   ← Datenmodell, Kursabruf, Formatierung
 ```
 
-App und Extension teilen ihre Einstellungen über die App Group `<TeamID>.de.thomasdobler.osxwidgets` (`SharedStore` in `Shared/Core`). Die Config-App schreibt, die Widgets lesen.
+App und Extension teilen ihre Einstellungen über die App Group `<TeamID>.de.thomasdobler.osxwidgets.shared` (`SharedStore` in `Shared/Core`). Die Config-App schreibt, die Widgets lesen.
 
 ## Bauen
 

@@ -35,7 +35,7 @@ xcodegen generate
 open OSXWidgets.xcodeproj
 ```
 
-1. Für **beide** Targets (`OSXWidgets` und `OSXWidgetsExtension`) unter *Signing & Capabilities* dein **Team** wählen.
+1. Das Signing-Team steht in `project.yml` (`DEVELOPMENT_TEAM`). Nicht in Xcode ändern, sonst ist es nach dem nächsten `xcodegen generate` weg. Anderes Team: Team-ID in `project.yml` ändern (zu finden mit `defaults read com.apple.dt.Xcode IDEProvisioningTeamByIdentifier | grep teamID`).
 2. Scheme **OSXWidgets**, Ziel **My Mac**, dann **⌘R**.
 3. Dauerhaft installieren: *Product → Archive → Distribute App → Custom → Copy App*, dann `OSX Widgets.app` nach **/Programme** ziehen und einmal starten.
 

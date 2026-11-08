@@ -12,7 +12,9 @@ settings:
     CURRENT_PROJECT_VERSION: "1"
     CODE_SIGN_STYLE: Automatic
     ENABLE_HARDENED_RUNTIME: YES
-    # DEVELOPMENT_TEAM: XXXXXXXXXX   # oder in Xcode unter Signing setzen
+    # Personal Team von Thomas Hofmann. Hier statt in Xcode setzen,
+    # weil `xcodegen generate` das Projekt neu erzeugt und das Team sonst verliert.
+    DEVELOPMENT_TEAM: UCYM7V6C85
     # Config-App und Widgets teilen ihre Einstellungen über die App Group
     # <TeamID>.de.thomasdobler.osxwidgets.shared (Team-ID kommt automatisch aus dem Signing).
 

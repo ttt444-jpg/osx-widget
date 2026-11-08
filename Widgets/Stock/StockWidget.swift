@@ -6,18 +6,6 @@ import WidgetKit
 // MARK: - Einstellungen (Rechtsklick auf das Widget → „Widget bearbeiten“)
 // Welche Werte drin sind, verwaltest du in der Config-App „OSX Widgets“ → Stock.
 
-extension Period: AppEnum {
-    static var typeDisplayRepresentation: TypeDisplayRepresentation = "Zeitraum"
-    static var caseDisplayRepresentations: [Period: DisplayRepresentation] = [
-        .day: "Heute",
-        .week: "1 Woche",
-        .month: "1 Monat",
-        .ytd: "Seit Jahresbeginn",
-        .year: "1 Jahr",
-        .fiveYears: "5 Jahre",
-    ]
-}
-
 enum StockKindFilter: String, AppEnum {
     case all, etf, stock
 
@@ -37,31 +25,15 @@ enum StockKindFilter: String, AppEnum {
     }
 }
 
-enum StockChangeStyle: String, AppEnum {
-    case absolute, percent
-
-    static var typeDisplayRepresentation: TypeDisplayRepresentation = "Veränderung"
-    static var caseDisplayRepresentations: [StockChangeStyle: DisplayRepresentation] = [
-        .absolute: "in Euro",
-        .percent: "in Prozent",
-    ]
-}
-
 struct StockConfigIntent: WidgetConfigurationIntent {
     static var title: LocalizedStringResource = "Stock-Widget"
-    static var description = IntentDescription("Werte hinzufügen oder löschen: App „OSX Widgets“ → Stock.")
+    static var description = IntentDescription("Werte und Kaufkurse: App „OSX Widgets“ → Stock.")
 
     @Parameter(title: "Anzeigen", default: .all)
     var filter: StockKindFilter
 
-    @Parameter(title: "Zeitraum", default: .day)
-    var period: Period
-
-    @Parameter(title: "Veränderung", default: .absolute)
-    var changeStyle: StockChangeStyle
-
-    @Parameter(title: "Nach Veränderung sortieren", default: false)
-    var sortByChange: Bool
+    @Parameter(title: "Nach Gewinn sortieren", default: false)
+    var sortByGain: Bool
 }
 
 // MARK: - Timeline
@@ -69,13 +41,12 @@ struct StockConfigIntent: WidgetConfigurationIntent {
 struct StockEntry: TimelineEntry {
     let date: Date
     let result: WatchResult
-    let style: StockChangeStyle
     let total: Int
 }
 
 struct StockProvider: AppIntentTimelineProvider {
     func placeholder(in context: Context) -> StockEntry {
-        StockEntry(date: .now, result: StockFetcher.sample, style: .absolute, total: StockFetcher.sample.quotes.count)
+        StockEntry(date: .now, result: StockFetcher.sample, total: StockFetcher.sample.quotes.count)
     }
 
     func snapshot(for configuration: StockConfigIntent, in context: Context) async -> StockEntry {
@@ -101,14 +72,14 @@ struct StockProvider: AppIntentTimelineProvider {
 
     private func load(_ config: StockConfigIntent) async -> StockEntry {
         let items = StockStore.load().filter { config.filter.matches($0.kind) }
-        var result = await StockFetcher.fetchAll(items, period: config.period)
-        if config.sortByChange {
+        var result = await StockFetcher.fetchAll(items)
+        if config.sortByGain {
             result = WatchResult(
-                quotes: result.quotes.sorted { ($0.change ?? -.infinity) > ($1.change ?? -.infinity) },
-                failed: result.failed, period: result.period, date: result.date
+                quotes: result.quotes.sorted { ($0.gain ?? -.infinity) > ($1.gain ?? -.infinity) },
+                failed: result.failed, date: result.date
             )
         }
-        return StockEntry(date: .now, result: result, style: config.changeStyle, total: items.count)
+        return StockEntry(date: .now, result: result, total: items.count)
     }
 }
 
@@ -150,9 +121,9 @@ struct StockEntryView: View {
                     let quotes = Array(entry.result.quotes.prefix(rows))
                     ForEach(Array(quotes.enumerated()), id: \.element.id) { i, q in
                         if family == .systemSmall {
-                            StockSmallRow(q: q, style: entry.style)
+                            StockSmallRow(q: q)
                         } else {
-                            StockRow(q: q, style: entry.style, period: entry.result.period)
+                            StockRow(q: q)
                         }
                         if i < quotes.count - 1 {
                             Rectangle().fill(Theme.text.opacity(0.14)).frame(height: 1)
@@ -169,18 +140,17 @@ struct StockEntryView: View {
 // MARK: - Zeilen
 
 /// Eine Zeile wie in der Aktien-App:
-/// ▼ Name           ~~Chart~~      Kurs
-///   voller Name                Veränderung
+/// ▼ Name           ~~Tagesverlauf~~      Kurs €
+///   voller Name                 ± seit Kauf €
+/// Grün/Rot richtet sich nach dem Kaufkurs (ohne Kaufkurs: nach dem Vortag).
 struct StockRow: View {
     let q: StockQuote
-    let style: StockChangeStyle
-    let period: Period
 
     var body: some View {
         HStack(spacing: 10) {
             VStack(alignment: .leading, spacing: 1) {
                 HStack(spacing: 4) {
-                    StockTrendArrow(change: q.change, size: 9)
+                    StockTrendArrow(change: q.gain, size: 9)
                     Text(q.name)
                         .font(.system(size: 14, weight: .semibold))
                         .lineLimit(1)
@@ -192,52 +162,49 @@ struct StockRow: View {
             }
             .frame(maxWidth: .infinity, alignment: .leading)
 
-            StockSparkline(values: q.points, reference: q.reference, color: Theme.trend(q.change))
-                .frame(width: 70)
+            StockSparkline(values: q.points, reference: q.previousClose, color: Theme.trend(q.gain))
+                .frame(width: 64)
                 .padding(.vertical, 5)
 
             VStack(alignment: .trailing, spacing: 1) {
-                Text(StockFmt.number(q.price))
+                Text(StockFmt.price(q.price))
                     .font(.system(size: 14, weight: .semibold).monospacedDigit())
-                Text(stockChangeText(q, style))
+                Text(StockFmt.signedPrice(q.gainAbs))
                     .font(.system(size: 11, weight: .medium).monospacedDigit())
-                    .foregroundStyle(Theme.trend(q.change))
+                    .foregroundStyle(Theme.trend(q.gain))
             }
-            .frame(minWidth: 62, alignment: .trailing)
+            .frame(minWidth: 72, alignment: .trailing)
         }
         .frame(maxHeight: .infinity)
     }
 }
 
-/// Kompakte Zeile ohne Chart für das kleine Widget.
+/// Kompakte Zeile ohne Kurve für das kleine Widget.
 struct StockSmallRow: View {
     let q: StockQuote
-    let style: StockChangeStyle
 
     var body: some View {
         HStack(spacing: 4) {
             VStack(alignment: .leading, spacing: 0) {
                 HStack(spacing: 3) {
-                    StockTrendArrow(change: q.change, size: 7)
+                    StockTrendArrow(change: q.gain, size: 7)
                     Text(q.name)
                         .font(.system(size: 12, weight: .semibold))
                         .lineLimit(1)
                 }
-                Text(StockFmt.number(q.price))
+                Text(StockFmt.price(q.price))
                     .font(.system(size: 10).monospacedDigit())
                     .foregroundStyle(Theme.muted)
             }
             Spacer(minLength: 2)
-            Text(stockChangeText(q, style))
+            Text(StockFmt.signedPrice(q.gainAbs))
                 .font(.system(size: 11, weight: .semibold).monospacedDigit())
-                .foregroundStyle(Theme.trend(q.change))
+                .foregroundStyle(Theme.trend(q.gain))
+                .minimumScaleFactor(0.8)
+                .lineLimit(1)
         }
         .frame(maxHeight: .infinity)
     }
-}
-
-private func stockChangeText(_ q: StockQuote, _ style: StockChangeStyle) -> String {
-    style == .percent ? StockFmt.percent(q.change) : StockFmt.delta(q.changeAbs)
 }
 
 // MARK: - Bausteine
@@ -260,7 +227,7 @@ struct StockTrendArrow: View {
     }
 }
 
-/// Verlauf mit Fläche darunter und gestrichelter Linie beim Vergleichskurs.
+/// Tagesverlauf mit Fläche darunter und gestrichelter Linie beim Vortagesschluss.
 struct StockSparkline: View {
     @Environment(\.widgetRenderingMode) private var renderingMode
     let values: [Double]

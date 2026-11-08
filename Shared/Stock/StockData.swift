@@ -30,6 +30,8 @@ struct WatchItem: Codable, Hashable, Identifiable {
     /// Voller Name, grau darunter (z. B. „iShares Core MSCI World“).
     var detail: String
     var kind: AssetKind
+    /// Kaufkurs in € pro Stück; entscheidet über Grün oder Rot. Optional.
+    var buyIn: Double? = nil
 
     var id: String { isin }
 }
@@ -93,36 +95,6 @@ enum StockStore {
     }
 }
 
-// MARK: - Zeitraum
-
-enum Period: String, CaseIterable, Codable, Sendable {
-    case day, week, month, ytd, year, fiveYears
-
-    var short: String {
-        switch self {
-        case .day: "Heute"
-        case .week: "1W"
-        case .month: "1M"
-        case .ytd: "YTD"
-        case .year: "1J"
-        case .fiveYears: "5J"
-        }
-    }
-
-    /// Beginn des Zeitraums; `nil` heißt „seit Vortagesschluss“.
-    func start(from now: Date) -> Date? {
-        let cal = Calendar(identifier: .gregorian)
-        switch self {
-        case .day: return nil
-        case .week: return cal.date(byAdding: .day, value: -7, to: now)
-        case .month: return cal.date(byAdding: .month, value: -1, to: now)
-        case .ytd: return cal.date(from: cal.dateComponents([.year], from: now))
-        case .year: return cal.date(byAdding: .year, value: -1, to: now)
-        case .fiveYears: return cal.date(byAdding: .year, value: -5, to: now)
-        }
-    }
-}
-
 // MARK: - Kurs
 
 struct StockQuote: Identifiable, Hashable {
@@ -131,28 +103,34 @@ struct StockQuote: Identifiable, Hashable {
     let detail: String
     let kind: AssetKind
     let price: Double
-    /// Kurs zu Beginn des Zeitraums (bei „Heute“: Vortagesschluss).
-    let reference: Double?
-    /// Kursverlauf im Zeitraum, für die Sparkline.
+    /// Schlusskurs des Vortags, für die gestrichelte Linie und als Ersatz ohne Kaufkurs.
+    let previousClose: Double?
+    let buyIn: Double?
+    /// Tagesverlauf (beginnend mit dem Vortagesschluss), für die Kurve.
     let points: [Double]
     let updated: Date
 
     var id: String { isin }
-    var change: Double? { reference.map { price / $0 - 1 } }
-    var changeAbs: Double? { reference.map { price - $0 } }
+
+    /// Veränderung seit Kauf, sonst seit Vortag – in € pro Stück …
+    var gainAbs: Double? {
+        if let buyIn { return price - buyIn }
+        return previousClose.map { price - $0 }
+    }
+
+    /// … und relativ. Bestimmt Farbe, Pfeil und Sortierung.
+    var gain: Double? {
+        if let buyIn, buyIn > 0 { return price / buyIn - 1 }
+        return previousClose.map { price / $0 - 1 }
+    }
+
+    var hasBuyIn: Bool { buyIn != nil }
 }
 
 struct WatchResult {
     let quotes: [StockQuote]
     let failed: [String]
-    let period: Period
     let date: Date
-
-    /// Durchschnittliche Veränderung, gleich gewichtet.
-    var averageChange: Double? {
-        let c = quotes.compactMap(\.change)
-        return c.isEmpty ? nil : c.reduce(0, +) / Double(c.count)
-    }
 }
 
 struct SearchHit: Identifiable, Hashable {
@@ -253,10 +231,10 @@ enum StockFetcher {
     }
 
     /// Alle Werte parallel laden; die Reihenfolge der Watchlist bleibt erhalten.
-    static func fetchAll(_ items: [WatchItem], period: Period) async -> WatchResult {
+    static func fetchAll(_ items: [WatchItem]) async -> WatchResult {
         let results = await withTaskGroup(of: (Int, StockQuote?).self) { group in
             for (i, item) in items.enumerated() {
-                group.addTask { (i, try? await fetch(item, period: period)) }
+                group.addTask { (i, try? await fetch(item)) }
             }
             var out = [(Int, StockQuote?)]()
             for await r in group { out.append(r) }
@@ -264,10 +242,10 @@ enum StockFetcher {
         }
         let quotes = results.compactMap(\.1)
         let failed = results.filter { $0.1 == nil }.map { items[$0.0].name }
-        return WatchResult(quotes: quotes, failed: failed, period: period, date: .now)
+        return WatchResult(quotes: quotes, failed: failed, date: .now)
     }
 
-    static func fetch(_ item: WatchItem, period: Period) async throws -> StockQuote {
+    static func fetch(_ item: WatchItem) async throws -> StockQuote {
         let id = try await lookup(item.isin)
         let chart: ChartResponse = try await get("instrument/chart/dataForInstrument?instrumentId=\(id)")
 
@@ -281,18 +259,10 @@ enum StockFetcher {
         let history = points("history")
         guard let last = intraday.last ?? history.last else { throw FetchError.noData(item.isin) }
 
-        let reference: Double?
-        var series: [Double]
-        if let start = period.start(from: .now) {
-            let slice = history.filter { $0.date >= start }
-            reference = history.last(where: { $0.date <= start })?.price ?? slice.first?.price
-            series = slice.map(\.price)
-        } else {
-            let prevClose = chart.info?.plotlines?.first(where: { $0.id == "previousDay" })?.value
-            reference = prevClose ?? history.dropLast().last?.price
-            series = intraday.map(\.price)
-            if let ref = reference { series.insert(ref, at: 0) }
-        }
+        let prevClose = chart.info?.plotlines?.first(where: { $0.id == "previousDay" })?.value
+            ?? history.dropLast().last?.price
+        var series = intraday.map(\.price)
+        if let prevClose { series.insert(prevClose, at: 0) }
         if series.last != last.price { series.append(last.price) }
 
         return StockQuote(
@@ -301,7 +271,8 @@ enum StockFetcher {
             detail: item.detail,
             kind: item.kind,
             price: last.price,
-            reference: reference,
+            previousClose: prevClose,
+            buyIn: item.buyIn,
             points: downsample(series, to: 90),
             updated: last.date
         )
@@ -340,37 +311,37 @@ enum StockFetcher {
 
     static let sample = WatchResult(
         quotes: [
-            StockQuote(isin: "IE00B4L5Y983", name: "MSCI World", detail: "MSCI World", kind: .etf, price: 126.78, reference: 125.90,
-                     points: [125.9, 126.1, 125.8, 126.3, 126.5, 126.4, 126.78], updated: .now),
-            StockQuote(isin: "US67066G1040", name: "NVIDIA", detail: "NVIDIA", kind: .stock, price: 170.14, reference: 169.34,
-                     points: [169.3, 169.9, 169.5, 170.4, 170.0, 170.14], updated: .now),
-            StockQuote(isin: "IE00B5BMR087", name: "S&P 500", detail: "S&P 500", kind: .etf, price: 642.10, reference: 636.55,
-                     points: [636.5, 638.0, 637.2, 640.4, 641.0, 642.1], updated: .now),
-            StockQuote(isin: "IE00BKM4GZ66", name: "MSCI EM IMI", detail: "MSCI EM IMI", kind: .etf, price: 39.12, reference: 39.40,
-                     points: [39.4, 39.3, 39.35, 39.2, 39.1, 39.12], updated: .now),
+            StockQuote(isin: "IE00B4L5Y983", name: "MSCI World", detail: "iShares Core MSCI World", kind: .etf,
+                       price: 126.78, previousClose: 125.90, buyIn: 98.50,
+                       points: [125.9, 126.1, 125.8, 126.3, 126.5, 126.4, 126.78], updated: .now),
+            StockQuote(isin: "US67066G1040", name: "NVIDIA", detail: "NVIDIA Corp.", kind: .stock,
+                       price: 170.14, previousClose: 169.34, buyIn: 182.00,
+                       points: [169.3, 169.9, 169.5, 170.4, 170.0, 170.14], updated: .now),
+            StockQuote(isin: "IE00B5BMR087", name: "S&P 500", detail: "iShares Core S&P 500", kind: .etf,
+                       price: 642.10, previousClose: 636.55, buyIn: 540.00,
+                       points: [636.5, 638.0, 637.2, 640.4, 641.0, 642.1], updated: .now),
+            StockQuote(isin: "IE00BKM4GZ66", name: "MSCI EM IMI", detail: "iShares Core MSCI EM IMI", kind: .etf,
+                       price: 39.12, previousClose: 39.40, buyIn: nil,
+                       points: [39.4, 39.3, 39.35, 39.2, 39.1, 39.12], updated: .now),
         ],
-        failed: [], period: .day, date: .now
+        failed: [], date: .now
     )
 }
 
 // MARK: - Formatierung
 
 enum StockFmt {
-    private static let de = Locale(identifier: "de_DE")
+    static let de = Locale(identifier: "de_DE")
 
+    /// „126,78 €“
     static func price(_ v: Double) -> String {
         v.formatted(.currency(code: "EUR").locale(de))
     }
 
-    /// Kurs ohne Währung, wie in der Aktien-App: „126,78“.
-    static func number(_ v: Double) -> String {
-        v.formatted(.number.precision(.fractionLength(2)).locale(de))
-    }
-
-    /// Absolute Veränderung mit Vorzeichen: „+0,80“ / „−237,33“.
-    static func delta(_ v: Double?) -> String {
+    /// „+12,34 €“ / „−5,10 €“
+    static func signedPrice(_ v: Double?) -> String {
         guard let v else { return "–" }
-        return v.formatted(.number.precision(.fractionLength(2)).sign(strategy: .always()).locale(de))
+        return v.formatted(.currency(code: "EUR").sign(strategy: .always()).locale(de))
     }
 
     static func percent(_ v: Double?) -> String {

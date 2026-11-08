@@ -1,7 +1,7 @@
 import SwiftUI
 import WidgetKit
 
-/// Watchlist verwalten: suchen und hinzufügen, löschen, sortieren, umbenennen.
+/// Watchlist verwalten: suchen und hinzufügen, löschen, sortieren, umbenennen, Kaufkurs eintragen.
 /// Jede Änderung wird sofort gespeichert und die Widgets neu geladen.
 struct StockSettingsView: View {
     @State private var items: [WatchItem] = StockStore.load()
@@ -15,7 +15,7 @@ struct StockSettingsView: View {
         VStack(alignment: .leading, spacing: 12) {
             Text("Stock")
                 .font(.title2.weight(.semibold))
-            Text("ETF- und Aktienkurse wie bei Trade Republic (Lang & Schwarz). Widget hinzufügen: Rechtsklick auf den Schreibtisch → „Widgets bearbeiten“ → Stock-Widget. Zeitraum, Filter und € oder % stellst du per Rechtsklick auf das Widget ein.")
+            Text("ETF- und Aktienkurse wie bei Trade Republic (Lang & Schwarz). Trag pro Wert deinen Kaufkurs ein: Danach richtet sich, ob das Widget Grün oder Rot zeigt, und rechts steht der Gewinn bzw. Verlust pro Stück. Widget hinzufügen: Rechtsklick auf den Schreibtisch → „Widgets bearbeiten“ → Stock-Widget.")
                 .font(.callout)
                 .foregroundStyle(.secondary)
                 .fixedSize(horizontal: false, vertical: true)
@@ -68,21 +68,38 @@ struct StockSettingsView: View {
                             TextField("Name", text: $item.name)
                                 .textFieldStyle(.plain)
                                 .font(.body.weight(.semibold))
-                                .onSubmit { save() }
                             Text("\(item.detail) · \(item.isin)")
                                 .font(.caption)
                                 .foregroundStyle(.secondary)
                                 .lineLimit(1)
                         }
                         Spacer()
-                        if let q = quotes[item.isin] {
-                            VStack(alignment: .trailing, spacing: 2) {
-                                Text(StockFmt.price(q.price)).monospacedDigit()
-                                Text(StockFmt.percent(q.change)).monospacedDigit()
-                                    .font(.caption)
-                                    .foregroundStyle(Theme.trend(q.change))
+                        VStack(alignment: .trailing, spacing: 2) {
+                            Text("Kaufkurs").font(.caption2).foregroundStyle(.secondary)
+                            HStack(spacing: 3) {
+                                TextField("–", value: $item.buyIn,
+                                          format: .number.precision(.fractionLength(0...4)).locale(StockFmt.de))
+                                    .textFieldStyle(.roundedBorder)
+                                    .multilineTextAlignment(.trailing)
+                                    .frame(width: 80)
+                                Text("€").foregroundStyle(.secondary)
                             }
                         }
+                        VStack(alignment: .trailing, spacing: 2) {
+                            if let q = quotes[item.isin] {
+                                Text(StockFmt.price(q.price)).monospacedDigit()
+                                if let buyIn = item.buyIn, buyIn > 0 {
+                                    let gain = q.price / buyIn - 1
+                                    Text("\(StockFmt.signedPrice(q.price - buyIn)) · \(StockFmt.percent(gain))")
+                                        .monospacedDigit()
+                                        .font(.caption)
+                                        .foregroundStyle(Theme.trend(gain))
+                                } else {
+                                    Text("kein Kaufkurs").font(.caption).foregroundStyle(.secondary)
+                                }
+                            }
+                        }
+                        .frame(width: 150, alignment: .trailing)
                         Button(role: .destructive) { remove(item) } label: {
                             Image(systemName: "trash")
                         }
@@ -106,7 +123,7 @@ struct StockSettingsView: View {
             .listStyle(.bordered)
 
             HStack {
-                Text("Reihenfolge per Drag & Drop, Namen per Klick umbenennen.")
+                Text("Reihenfolge per Drag & Drop, Namen per Klick umbenennen, Kaufkurs in € pro Stück.")
                     .font(.caption)
                     .foregroundStyle(.secondary)
                 Spacer()
@@ -119,7 +136,7 @@ struct StockSettingsView: View {
         }
         .padding(20)
         .task { await loadQuotes() }
-        .onChange(of: items.map(\.name)) { _, _ in save() }
+        .onChange(of: items) { _, _ in save() }
     }
 
     private func search() async {
@@ -139,7 +156,7 @@ struct StockSettingsView: View {
         items.append(item)
         save()
         Task {
-            if let q = try? await StockFetcher.fetch(item, period: .day) { quotes[q.isin] = q }
+            if let q = try? await StockFetcher.fetch(item) { quotes[q.isin] = q }
         }
     }
 
@@ -153,7 +170,7 @@ struct StockSettingsView: View {
     }
 
     private func loadQuotes() async {
-        let result = await StockFetcher.fetchAll(items, period: .day)
+        let result = await StockFetcher.fetchAll(items)
         quotes = Dictionary(uniqueKeysWithValues: result.quotes.map { ($0.isin, $0) })
     }
 }

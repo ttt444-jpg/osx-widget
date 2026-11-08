@@ -9,11 +9,10 @@ DerivedData/
 build/
 
 # von XcodeGen erzeugt
-*/App/Info.plist
-*/Widget/Info.plist
-*/App/App.entitlements
-*/Widget/Widget.entitlements
+ConfigApp/Info.plist
+ConfigApp/ConfigApp.entitlements
+Widgets/Info.plist
+Widgets/Widgets.entitlements
 
-# Python / Secrets
-__pycache__/
+# Secrets
 .env

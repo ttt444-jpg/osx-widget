@@ -1,22 +1,11 @@
 import SwiftUI
 import WidgetKit
 
-@main
-struct WatchApp: App {
-    var body: some Scene {
-        WindowGroup("Stock-Widget") {
-            ContentView()
-                .frame(width: 560, height: 680)
-        }
-        .windowResizability(.contentSize)
-    }
-}
-
 /// Watchlist verwalten: suchen und hinzufügen, löschen, sortieren, umbenennen.
 /// Jede Änderung wird sofort gespeichert und die Widgets neu geladen.
-struct ContentView: View {
-    @State private var items: [WatchItem] = WatchStore.load()
-    @State private var quotes: [String: ETFQuote] = [:]
+struct StockSettingsView: View {
+    @State private var items: [WatchItem] = StockStore.load()
+    @State private var quotes: [String: StockQuote] = [:]
     @State private var query = ""
     @State private var hits: [SearchHit] = []
     @State private var searching = false
@@ -24,9 +13,9 @@ struct ContentView: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: 12) {
-            Text("Stock-Widget")
+            Text("Stock")
                 .font(.title2.weight(.semibold))
-            Text("Widget hinzufügen: Rechtsklick auf den Schreibtisch → „Widgets bearbeiten“ → Stock-Widget. Zeitraum, Filter und € oder % stellst du per Rechtsklick auf das Widget ein.")
+            Text("ETF- und Aktienkurse wie bei Trade Republic (Lang & Schwarz). Widget hinzufügen: Rechtsklick auf den Schreibtisch → „Widgets bearbeiten“ → Stock-Widget. Zeitraum, Filter und € oder % stellst du per Rechtsklick auf das Widget ein.")
                 .font(.callout)
                 .foregroundStyle(.secondary)
                 .fixedSize(horizontal: false, vertical: true)
@@ -45,7 +34,7 @@ struct ContentView: View {
             if !hits.isEmpty {
                 List(hits) { hit in
                     HStack {
-                        KindBadge(kind: hit.kind, label: hit.category)
+                        StockKindBadge(kind: hit.kind, label: hit.category)
                         VStack(alignment: .leading) {
                             Text(hit.name)
                             Text(hit.isin).font(.caption.monospaced()).foregroundStyle(.secondary)
@@ -74,7 +63,7 @@ struct ContentView: View {
                 ForEach($items) { $item in
                     HStack(spacing: 10) {
                         Image(systemName: "line.3.horizontal").foregroundStyle(.tertiary)
-                        KindBadge(kind: item.kind, label: item.kind.title)
+                        StockKindBadge(kind: item.kind, label: item.kind.title)
                         VStack(alignment: .leading, spacing: 2) {
                             TextField("Name", text: $item.name)
                                 .textFieldStyle(.plain)
@@ -88,8 +77,8 @@ struct ContentView: View {
                         Spacer()
                         if let q = quotes[item.isin] {
                             VStack(alignment: .trailing, spacing: 2) {
-                                Text(Fmt.price(q.price)).monospacedDigit()
-                                Text(Fmt.percent(q.change)).monospacedDigit()
+                                Text(StockFmt.price(q.price)).monospacedDigit()
+                                Text(StockFmt.percent(q.change)).monospacedDigit()
                                     .font(.caption)
                                     .foregroundStyle(Theme.trend(q.change))
                             }
@@ -122,10 +111,10 @@ struct ContentView: View {
                     .foregroundStyle(.secondary)
                 Spacer()
                 Button("Standardliste") {
-                    items = ETFDefaults.watchlist
+                    items = StockDefaults.watchlist
                     save()
                 }
-                Button("Widgets neu laden") { WidgetCenter.shared.reloadAllTimelines() }
+                Button("Widget neu laden") { WidgetCenter.shared.reloadTimelines(ofKind: StockStore.kind) }
             }
         }
         .padding(20)
@@ -138,7 +127,7 @@ struct ContentView: View {
         searchError = nil
         defer { searching = false }
         do {
-            hits = try await ETFFetcher.search(query)
+            hits = try await StockFetcher.search(query)
             if hits.isEmpty { searchError = "Nichts gefunden." }
         } catch {
             searchError = error.localizedDescription
@@ -150,7 +139,7 @@ struct ContentView: View {
         items.append(item)
         save()
         Task {
-            if let q = try? await ETFFetcher.fetch(item, period: .day) { quotes[q.isin] = q }
+            if let q = try? await StockFetcher.fetch(item, period: .day) { quotes[q.isin] = q }
         }
     }
 
@@ -160,16 +149,16 @@ struct ContentView: View {
     }
 
     private func save() {
-        WatchStore.save(items)
+        StockStore.save(items)
     }
 
     private func loadQuotes() async {
-        let result = await ETFFetcher.fetchAll(items, period: .day)
+        let result = await StockFetcher.fetchAll(items, period: .day)
         quotes = Dictionary(uniqueKeysWithValues: result.quotes.map { ($0.isin, $0) })
     }
 }
 
-struct KindBadge: View {
+struct StockKindBadge: View {
     let kind: AssetKind
     let label: String
 

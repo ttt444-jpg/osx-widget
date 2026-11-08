@@ -4,7 +4,7 @@ import SwiftUI
 import WidgetKit
 
 // MARK: - Einstellungen (Rechtsklick auf das Widget → „Widget bearbeiten“)
-// Welche Werte drin sind, verwaltest du in der App „Stock-Widget“.
+// Welche Werte drin sind, verwaltest du in der Config-App „OSX Widgets“ → Stock.
 
 extension Period: AppEnum {
     static var typeDisplayRepresentation: TypeDisplayRepresentation = "Zeitraum"
@@ -18,11 +18,11 @@ extension Period: AppEnum {
     ]
 }
 
-enum KindFilter: String, AppEnum {
+enum StockKindFilter: String, AppEnum {
     case all, etf, stock
 
     static var typeDisplayRepresentation: TypeDisplayRepresentation = "Anzeigen"
-    static var caseDisplayRepresentations: [KindFilter: DisplayRepresentation] = [
+    static var caseDisplayRepresentations: [StockKindFilter: DisplayRepresentation] = [
         .all: "Alle",
         .etf: "Nur ETFs",
         .stock: "Nur Aktien",
@@ -37,28 +37,28 @@ enum KindFilter: String, AppEnum {
     }
 }
 
-enum ChangeStyle: String, AppEnum {
+enum StockChangeStyle: String, AppEnum {
     case absolute, percent
 
     static var typeDisplayRepresentation: TypeDisplayRepresentation = "Veränderung"
-    static var caseDisplayRepresentations: [ChangeStyle: DisplayRepresentation] = [
+    static var caseDisplayRepresentations: [StockChangeStyle: DisplayRepresentation] = [
         .absolute: "in Euro",
         .percent: "in Prozent",
     ]
 }
 
-struct WatchConfigIntent: WidgetConfigurationIntent {
+struct StockConfigIntent: WidgetConfigurationIntent {
     static var title: LocalizedStringResource = "Stock-Widget"
-    static var description = IntentDescription("Werte hinzufügen oder löschen: App „Stock-Widget“ öffnen.")
+    static var description = IntentDescription("Werte hinzufügen oder löschen: App „OSX Widgets“ → Stock.")
 
     @Parameter(title: "Anzeigen", default: .all)
-    var filter: KindFilter
+    var filter: StockKindFilter
 
     @Parameter(title: "Zeitraum", default: .day)
     var period: Period
 
     @Parameter(title: "Veränderung", default: .absolute)
-    var changeStyle: ChangeStyle
+    var changeStyle: StockChangeStyle
 
     @Parameter(title: "Nach Veränderung sortieren", default: false)
     var sortByChange: Bool
@@ -66,24 +66,24 @@ struct WatchConfigIntent: WidgetConfigurationIntent {
 
 // MARK: - Timeline
 
-struct WatchEntry: TimelineEntry {
+struct StockEntry: TimelineEntry {
     let date: Date
     let result: WatchResult
-    let style: ChangeStyle
+    let style: StockChangeStyle
     let total: Int
 }
 
-struct Provider: AppIntentTimelineProvider {
-    func placeholder(in context: Context) -> WatchEntry {
-        WatchEntry(date: .now, result: ETFFetcher.sample, style: .absolute, total: ETFFetcher.sample.quotes.count)
+struct StockProvider: AppIntentTimelineProvider {
+    func placeholder(in context: Context) -> StockEntry {
+        StockEntry(date: .now, result: StockFetcher.sample, style: .absolute, total: StockFetcher.sample.quotes.count)
     }
 
-    func snapshot(for configuration: WatchConfigIntent, in context: Context) async -> WatchEntry {
+    func snapshot(for configuration: StockConfigIntent, in context: Context) async -> StockEntry {
         if context.isPreview { return placeholder(in: context) }
         return await load(configuration)
     }
 
-    func timeline(for configuration: WatchConfigIntent, in context: Context) async -> Timeline<WatchEntry> {
+    func timeline(for configuration: StockConfigIntent, in context: Context) async -> Timeline<StockEntry> {
         let entry = await load(configuration)
         // Während der Handelszeit alle 15 Minuten, sonst stündlich. macOS kann das strecken.
         let busy = entry.result.quotes.isEmpty || Self.marketOpen(.now)
@@ -99,34 +99,27 @@ struct Provider: AppIntentTimelineProvider {
         return (2...6).contains(weekday) && (7..<23).contains(hour)
     }
 
-    private func load(_ config: WatchConfigIntent) async -> WatchEntry {
-        let items = WatchStore.load().filter { config.filter.matches($0.kind) }
-        var result = await ETFFetcher.fetchAll(items, period: config.period)
+    private func load(_ config: StockConfigIntent) async -> StockEntry {
+        let items = StockStore.load().filter { config.filter.matches($0.kind) }
+        var result = await StockFetcher.fetchAll(items, period: config.period)
         if config.sortByChange {
             result = WatchResult(
                 quotes: result.quotes.sorted { ($0.change ?? -.infinity) > ($1.change ?? -.infinity) },
                 failed: result.failed, period: result.period, date: result.date
             )
         }
-        return WatchEntry(date: .now, result: result, style: config.changeStyle, total: items.count)
+        return StockEntry(date: .now, result: result, style: config.changeStyle, total: items.count)
     }
 }
 
 // MARK: - Widget
 
-@main
-struct WatchWidgetBundle: WidgetBundle {
-    var body: some Widget {
-        WatchWidget()
-    }
-}
-
-struct WatchWidget: Widget {
-    let kind = "StockWidget"
+struct StockWidget: Widget {
+    let kind = StockStore.kind
 
     var body: some WidgetConfiguration {
-        AppIntentConfiguration(kind: kind, intent: WatchConfigIntent.self, provider: Provider()) { entry in
-            EntryView(entry: entry)
+        AppIntentConfiguration(kind: kind, intent: StockConfigIntent.self, provider: StockProvider()) { entry in
+            StockEntryView(entry: entry)
                 .containerBackground(for: .widget) { Theme.bg }
         }
         .configurationDisplayName("Stock-Widget")
@@ -135,9 +128,9 @@ struct WatchWidget: Widget {
     }
 }
 
-struct EntryView: View {
+struct StockEntryView: View {
     @Environment(\.widgetFamily) private var family
-    let entry: WatchEntry
+    let entry: StockEntry
 
     /// So viele Zeilen passen in die jeweilige Größe.
     private var rows: Int {
@@ -151,15 +144,15 @@ struct EntryView: View {
     var body: some View {
         Group {
             if entry.result.quotes.isEmpty {
-                ErrorView(entry: entry)
+                StockErrorView(entry: entry)
             } else {
                 VStack(spacing: 0) {
                     let quotes = Array(entry.result.quotes.prefix(rows))
                     ForEach(Array(quotes.enumerated()), id: \.element.id) { i, q in
                         if family == .systemSmall {
-                            SmallRow(q: q, style: entry.style)
+                            StockSmallRow(q: q, style: entry.style)
                         } else {
-                            QuoteRow(q: q, style: entry.style, period: entry.result.period)
+                            StockRow(q: q, style: entry.style, period: entry.result.period)
                         }
                         if i < quotes.count - 1 {
                             Rectangle().fill(Theme.divider).frame(height: 0.5)
@@ -178,16 +171,16 @@ struct EntryView: View {
 /// Eine Zeile wie in der Aktien-App:
 /// ▼ Name           ~~Chart~~      Kurs
 ///   voller Name                Veränderung
-struct QuoteRow: View {
-    let q: ETFQuote
-    let style: ChangeStyle
+struct StockRow: View {
+    let q: StockQuote
+    let style: StockChangeStyle
     let period: Period
 
     var body: some View {
         HStack(spacing: 10) {
             VStack(alignment: .leading, spacing: 1) {
                 HStack(spacing: 4) {
-                    TrendArrow(change: q.change, size: 9)
+                    StockTrendArrow(change: q.change, size: 9)
                     Text(q.name)
                         .font(.system(size: 14, weight: .semibold))
                         .lineLimit(1)
@@ -199,14 +192,14 @@ struct QuoteRow: View {
             }
             .frame(maxWidth: .infinity, alignment: .leading)
 
-            Sparkline(values: q.points, reference: q.reference, color: Theme.trend(q.change))
+            StockSparkline(values: q.points, reference: q.reference, color: Theme.trend(q.change))
                 .frame(width: 70)
                 .padding(.vertical, 5)
 
             VStack(alignment: .trailing, spacing: 1) {
-                Text(Fmt.number(q.price))
+                Text(StockFmt.number(q.price))
                     .font(.system(size: 14, weight: .semibold).monospacedDigit())
-                Text(changeText(q, style))
+                Text(stockChangeText(q, style))
                     .font(.system(size: 11, weight: .medium).monospacedDigit())
                     .foregroundStyle(Theme.trend(q.change))
             }
@@ -217,25 +210,25 @@ struct QuoteRow: View {
 }
 
 /// Kompakte Zeile ohne Chart für das kleine Widget.
-struct SmallRow: View {
-    let q: ETFQuote
-    let style: ChangeStyle
+struct StockSmallRow: View {
+    let q: StockQuote
+    let style: StockChangeStyle
 
     var body: some View {
         HStack(spacing: 4) {
             VStack(alignment: .leading, spacing: 0) {
                 HStack(spacing: 3) {
-                    TrendArrow(change: q.change, size: 7)
+                    StockTrendArrow(change: q.change, size: 7)
                     Text(q.name)
                         .font(.system(size: 12, weight: .semibold))
                         .lineLimit(1)
                 }
-                Text(Fmt.number(q.price))
+                Text(StockFmt.number(q.price))
                     .font(.system(size: 10).monospacedDigit())
                     .foregroundStyle(Theme.muted)
             }
             Spacer(minLength: 2)
-            Text(changeText(q, style))
+            Text(stockChangeText(q, style))
                 .font(.system(size: 11, weight: .semibold).monospacedDigit())
                 .foregroundStyle(Theme.trend(q.change))
         }
@@ -243,13 +236,13 @@ struct SmallRow: View {
     }
 }
 
-private func changeText(_ q: ETFQuote, _ style: ChangeStyle) -> String {
-    style == .percent ? Fmt.percent(q.change) : Fmt.delta(q.changeAbs)
+private func stockChangeText(_ q: StockQuote, _ style: StockChangeStyle) -> String {
+    style == .percent ? StockFmt.percent(q.change) : StockFmt.delta(q.changeAbs)
 }
 
 // MARK: - Bausteine
 
-struct TrendArrow: View {
+struct StockTrendArrow: View {
     let change: Double?
     let size: CGFloat
 
@@ -263,7 +256,7 @@ struct TrendArrow: View {
 }
 
 /// Verlauf mit Fläche darunter und gestrichelter Linie beim Vergleichskurs.
-struct Sparkline: View {
+struct StockSparkline: View {
     let values: [Double]
     let reference: Double?
     let color: Color
@@ -301,8 +294,8 @@ struct Sparkline: View {
     }
 }
 
-struct ErrorView: View {
-    let entry: WatchEntry
+struct StockErrorView: View {
+    let entry: StockEntry
 
     var body: some View {
         VStack(alignment: .leading, spacing: 6) {
@@ -313,7 +306,7 @@ struct ErrorView: View {
                 .font(.system(size: 15, weight: .semibold))
                 .foregroundStyle(Theme.red)
             Text(entry.total == 0
-                 ? "Öffne die App „Stock-Widget“ und füge ETFs oder Aktien hinzu."
+                 ? "Öffne „OSX Widgets“ → Stock und füge ETFs oder Aktien hinzu."
                  : "Lang & Schwarz nicht erreichbar. Neuer Versuch in 15 Minuten.")
                 .font(.system(size: 11))
                 .foregroundStyle(Theme.muted)

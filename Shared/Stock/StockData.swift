@@ -1,6 +1,4 @@
 import Foundation
-import SwiftUI
-import WidgetKit
 
 // MARK: - Watchlist
 
@@ -36,7 +34,7 @@ struct WatchItem: Codable, Hashable, Identifiable {
     var id: String { isin }
 }
 
-enum ETFDefaults {
+enum StockDefaults {
     /// ETFs und Aktien aus dem Trade-Republic-Depot, in der Reihenfolge der App.
     static let watchlist: [WatchItem] = [
         WatchItem(isin: "IE00B57X3V84", name: "DJ Sustainability", detail: "iShares DJ Global Sustainability Screened", kind: .etf),
@@ -79,32 +77,19 @@ enum ETFDefaults {
     }
 }
 
-// MARK: - Gemeinsamer Speicher von App und Widget (App Group)
+// MARK: - Speicher (App Group, siehe Shared/Core/SharedStore.swift)
 
-enum WatchStore {
-    private static let key = "watchlist.v1"
-
-    /// Kommt aus der Info.plist (`AppGroupID`), damit die Team-ID nicht im Code steht.
-    static var groupID: String? {
-        Bundle.main.object(forInfoDictionaryKey: "AppGroupID") as? String
-    }
-
-    private static var defaults: UserDefaults {
-        groupID.flatMap { UserDefaults(suiteName: $0) } ?? .standard
-    }
+enum StockStore {
+    /// Widget-Art, damit die Config-App gezielt dieses Widget neu laden kann.
+    static let kind = "StockWidget"
+    private static let key = "stock.watchlist"
 
     static func load() -> [WatchItem] {
-        guard let data = defaults.data(forKey: key),
-              let items = try? JSONDecoder().decode([WatchItem].self, from: data)
-        else { return ETFDefaults.watchlist }
-        return items
+        SharedStore.load([WatchItem].self, key: key) ?? StockDefaults.watchlist
     }
 
     static func save(_ items: [WatchItem]) {
-        if let data = try? JSONEncoder().encode(items) {
-            defaults.set(data, forKey: key)
-        }
-        WidgetCenter.shared.reloadAllTimelines()
+        SharedStore.save(items, key: key, reloading: kind)
     }
 }
 
@@ -140,7 +125,7 @@ enum Period: String, CaseIterable, Codable, Sendable {
 
 // MARK: - Kurs
 
-struct ETFQuote: Identifiable, Hashable {
+struct StockQuote: Identifiable, Hashable {
     let isin: String
     let name: String
     let detail: String
@@ -158,7 +143,7 @@ struct ETFQuote: Identifiable, Hashable {
 }
 
 struct WatchResult {
-    let quotes: [ETFQuote]
+    let quotes: [StockQuote]
     let failed: [String]
     let period: Period
     let date: Date
@@ -181,7 +166,7 @@ struct SearchHit: Identifiable, Hashable {
 
 // MARK: - Abruf bei Lang & Schwarz (dort handelt Trade Republic)
 
-enum ETFFetcher {
+enum StockFetcher {
     private static let base = "https://www.ls-tc.de/_rpc/json"
 
     enum FetchError: LocalizedError {
@@ -260,8 +245,8 @@ enum ETFFetcher {
             cacheID(hit)
             let category = hit.categoryName ?? ""
             return SearchHit(isin: hit.isin,
-                             name: ETFDefaults.prettyName(isin: hit.isin, lsName: hit.displayname),
-                             detail: ETFDefaults.cleanName(hit.displayname),
+                             name: StockDefaults.prettyName(isin: hit.isin, lsName: hit.displayname),
+                             detail: StockDefaults.cleanName(hit.displayname),
                              kind: AssetKind(lsCategory: category),
                              category: category)
         }
@@ -269,11 +254,11 @@ enum ETFFetcher {
 
     /// Alle Werte parallel laden; die Reihenfolge der Watchlist bleibt erhalten.
     static func fetchAll(_ items: [WatchItem], period: Period) async -> WatchResult {
-        let results = await withTaskGroup(of: (Int, ETFQuote?).self) { group in
+        let results = await withTaskGroup(of: (Int, StockQuote?).self) { group in
             for (i, item) in items.enumerated() {
                 group.addTask { (i, try? await fetch(item, period: period)) }
             }
-            var out = [(Int, ETFQuote?)]()
+            var out = [(Int, StockQuote?)]()
             for await r in group { out.append(r) }
             return out.sorted { $0.0 < $1.0 }
         }
@@ -282,7 +267,7 @@ enum ETFFetcher {
         return WatchResult(quotes: quotes, failed: failed, period: period, date: .now)
     }
 
-    static func fetch(_ item: WatchItem, period: Period) async throws -> ETFQuote {
+    static func fetch(_ item: WatchItem, period: Period) async throws -> StockQuote {
         let id = try await lookup(item.isin)
         let chart: ChartResponse = try await get("instrument/chart/dataForInstrument?instrumentId=\(id)")
 
@@ -310,7 +295,7 @@ enum ETFFetcher {
         }
         if series.last != last.price { series.append(last.price) }
 
-        return ETFQuote(
+        return StockQuote(
             isin: item.isin,
             name: item.name,
             detail: item.detail,
@@ -355,13 +340,13 @@ enum ETFFetcher {
 
     static let sample = WatchResult(
         quotes: [
-            ETFQuote(isin: "IE00B4L5Y983", name: "MSCI World", detail: "MSCI World", kind: .etf, price: 126.78, reference: 125.90,
+            StockQuote(isin: "IE00B4L5Y983", name: "MSCI World", detail: "MSCI World", kind: .etf, price: 126.78, reference: 125.90,
                      points: [125.9, 126.1, 125.8, 126.3, 126.5, 126.4, 126.78], updated: .now),
-            ETFQuote(isin: "US67066G1040", name: "NVIDIA", detail: "NVIDIA", kind: .stock, price: 170.14, reference: 169.34,
+            StockQuote(isin: "US67066G1040", name: "NVIDIA", detail: "NVIDIA", kind: .stock, price: 170.14, reference: 169.34,
                      points: [169.3, 169.9, 169.5, 170.4, 170.0, 170.14], updated: .now),
-            ETFQuote(isin: "IE00B5BMR087", name: "S&P 500", detail: "S&P 500", kind: .etf, price: 642.10, reference: 636.55,
+            StockQuote(isin: "IE00B5BMR087", name: "S&P 500", detail: "S&P 500", kind: .etf, price: 642.10, reference: 636.55,
                      points: [636.5, 638.0, 637.2, 640.4, 641.0, 642.1], updated: .now),
-            ETFQuote(isin: "IE00BKM4GZ66", name: "MSCI EM IMI", detail: "MSCI EM IMI", kind: .etf, price: 39.12, reference: 39.40,
+            StockQuote(isin: "IE00BKM4GZ66", name: "MSCI EM IMI", detail: "MSCI EM IMI", kind: .etf, price: 39.12, reference: 39.40,
                      points: [39.4, 39.3, 39.35, 39.2, 39.1, 39.12], updated: .now),
         ],
         failed: [], period: .day, date: .now
@@ -370,7 +355,7 @@ enum ETFFetcher {
 
 // MARK: - Formatierung
 
-enum Fmt {
+enum StockFmt {
     private static let de = Locale(identifier: "de_DE")
 
     static func price(_ v: Double) -> String {
@@ -395,32 +380,5 @@ enum Fmt {
 
     static func time(_ d: Date) -> String {
         d.formatted(Date.FormatStyle(date: .omitted, time: .shortened).locale(de))
-    }
-}
-
-// MARK: - Farben (wie beim Server-Status-Widget)
-
-enum Theme {
-    static let bg = Color(hex: 0x111318)
-    static let card = Color(hex: 0x1C2028)
-    static let divider = Color(hex: 0x2A2F39)
-    static let text = Color(hex: 0xE6E8EC)
-    static let muted = Color(hex: 0x9AA1AD)
-    static let green = Color(hex: 0x5BD18B)
-    static let red = Color(hex: 0xF26D6D)
-
-    static func trend(_ change: Double?) -> Color {
-        guard let change else { return muted }
-        return change >= 0 ? green : red
-    }
-}
-
-extension Color {
-    init(hex: UInt32) {
-        self.init(
-            red: Double((hex >> 16) & 0xFF) / 255,
-            green: Double((hex >> 8) & 0xFF) / 255,
-            blue: Double(hex & 0xFF) / 255
-        )
     }
 }

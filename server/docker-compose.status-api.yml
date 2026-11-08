@@ -1,0 +1,34 @@
+# In den bestehenden Monitoring-Compose übernehmen (Service-Block unter "services:").
+# Token erzeugen:  openssl rand -hex 32  ->  in .env als STATUS_TOKEN=...
+# Netzwerknamen an die tatsächlichen anpassen (docker network ls).
+
+services:
+  status-api:
+    image: python:3.12-alpine
+    container_name: monitoring-status-api
+    command: ["python", "/app/status_api.py"]
+    volumes:
+      - ./status-api/status_api.py:/app/status_api.py:ro
+    environment:
+      PROM_URL: http://prometheus:9090
+      STATUS_TOKEN: ${STATUS_TOKEN:?STATUS_TOKEN fehlt}
+      CACHE_SECONDS: "60"
+    networks:
+      - monitoring      # erreicht prometheus
+      - npm             # erreichbar für den Nginx Proxy Manager
+    # kein "ports:" -> nur über den Proxy erreichbar
+    user: "65534:65534"
+    read_only: true
+    cap_drop: [ALL]
+    security_opt: ["no-new-privileges:true"]
+    mem_limit: 64m
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "wget", "-qO-", "http://127.0.0.1:8099/healthz"]
+      interval: 60s
+      timeout: 5s
+
+networks:
+  npm:
+    external: true
+    name: npm_default   # ANPASSEN: Netzwerk des Proxy Managers

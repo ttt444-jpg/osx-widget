@@ -1,0 +1,19 @@
+# macOS
+.DS_Store
+
+# Xcode – Projekte erzeugt XcodeGen aus project.yml
+*.xcodeproj/
+*.xcworkspace/
+xcuserdata/
+DerivedData/
+build/
+
+# von XcodeGen erzeugt
+*/App/Info.plist
+*/Widget/Info.plist
+*/App/App.entitlements
+*/Widget/Widget.entitlements
+
+# Python / Secrets
+__pycache__/
+.env

@@ -155,8 +155,8 @@ struct StockEntryView: View {
 // MARK: - Zeilen
 
 /// Eine Zeile wie in der Aktien-App:
-/// ▼ Name           ~~Kurve~~             Kurs €
-///   voller Name                 ± seit Kauf %
+/// ▼ Name           ~~Kurve~~      ± seit Kauf %
+///   voller Name                        Kurs €
 /// Prozent und Grün/Rot beziehen sich auf den Kaufkurs (ohne Kaufkurs: auf den Vergleichskurs).
 struct StockRow: View {
     let q: StockQuote
@@ -182,11 +182,12 @@ struct StockRow: View {
                 .padding(.vertical, 5)
 
             VStack(alignment: .trailing, spacing: 1) {
-                Text(StockFmt.price(q.price))
-                    .font(.system(size: 14, weight: .semibold).monospacedDigit())
                 Text(StockFmt.percent(q.gain))
-                    .font(.system(size: 11, weight: .medium).monospacedDigit())
+                    .font(.system(size: 14, weight: .semibold).monospacedDigit())
                     .foregroundStyle(Theme.trend(q.gain))
+                Text(StockFmt.price(q.price))
+                    .font(.system(size: 11).monospacedDigit())
+                    .foregroundStyle(Theme.muted)
             }
             .frame(minWidth: 72, alignment: .trailing)
         }

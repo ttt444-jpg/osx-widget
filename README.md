@@ -80,13 +80,13 @@ Zeigt Kurse deiner ETFs und Aktien. Die Kurse kommen von **Lang & Schwarz**, dem
 **Jede Zeile im Widget:**
 
 ```
-▲ MSCI World           ~~Tagesverlauf~~      126,78 €
-  iShares Core MSCI World                   +28,71 %
+▲ MSCI World           ~~Tagesverlauf~~      +28,71 %
+  iShares Core MSCI World                   126,78 €
 ```
 
 - **Kurve:** standardmäßig der Tagesverlauf, umstellbar am Widget (1 Woche bis 5 Jahre). Die gestrichelte Linie zeigt den Vergleichskurs: Vortagesschluss bzw. Kurs zu Beginn des Zeitraums.
-- **Rechts oben:** aktueller Kurs in €
-- **Rechts unten:** Differenz zum Kaufkurs in %
+- **Rechts oben (groß):** Differenz zum Kaufkurs in %
+- **Rechts unten (klein):** aktueller Kurs in €
 - **Farbe** von Pfeil, Kurve und Betrag: grün über dem Kaufkurs, rot darunter. Ohne Kaufkurs gilt die Veränderung zum Vergleichskurs.
 
 **Am Widget** (Rechtsklick → bearbeiten):

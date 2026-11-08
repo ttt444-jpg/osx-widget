@@ -69,19 +69,20 @@ struct StockSettingsView: View {
                     HStack(spacing: 10) {
                         Image(systemName: "line.3.horizontal").foregroundStyle(.tertiary)
                         StockKindBadge(kind: item.kind, label: item.kind.title)
-                        // Name = fette erste Zeile im Widget, Untertitel = graue zweite Zeile.
-                        VStack(alignment: .leading, spacing: 4) {
+                        // Name = fette erste Zeile im Widget, Börse = graue zweite Zeile (automatisch).
+                        VStack(alignment: .leading, spacing: 3) {
                             TextField("Name", text: $item.name, prompt: Text("Name im Widget"))
                                 .textFieldStyle(.roundedBorder)
                                 .font(.body.weight(.semibold))
                                 .help("Fetter Name in der ersten Zeile des Widgets")
-                            TextField("Untertitel", text: $item.detail, prompt: Text("Untertitel (grau)"))
-                                .textFieldStyle(.roundedBorder)
+                            Text(item.detail)
                                 .font(.caption)
-                                .help("Graue zweite Zeile im Widget")
-                            Text(item.isin)
+                                .foregroundStyle(.secondary)
+                                .lineLimit(1)
+                            Text("\(item.exchange ?? "Börse wird ermittelt …") · \(item.isin)")
                                 .font(.caption2.monospaced())
                                 .foregroundStyle(.secondary)
+                                .help("Börse: zweite Zeile im Widget, automatisch über OpenFIGI ermittelt")
                         }
                         .frame(maxWidth: .infinity, alignment: .leading)
                         VStack(alignment: .trailing, spacing: 2) {
@@ -136,7 +137,7 @@ struct StockSettingsView: View {
             .frame(minHeight: 160, maxHeight: .infinity)
 
             HStack {
-                Text("Reihenfolge per Drag & Drop. Name, Untertitel und Kaufkurs (€ pro Stück) direkt in der Zeile ändern.")
+                Text("Reihenfolge per Drag & Drop. Name und Kaufkurs (€ pro Stück) direkt in der Zeile ändern.")
                     .font(.caption)
                     .foregroundStyle(.secondary)
                 Spacer()
@@ -152,6 +153,8 @@ struct StockSettingsView: View {
         .task {
             items = await Task.detached { StockStore.load() }.value
             loaded = true
+            let filled = await StockStore.fillingExchanges(items)
+            if filled != items { items = filled }
             await loadQuotes()
         }
         .onChange(of: items) { _, _ in if loaded { save() } }
@@ -173,6 +176,12 @@ struct StockSettingsView: View {
         let item = WatchItem(isin: hit.isin, name: hit.name, detail: hit.detail, kind: hit.kind)
         items.append(item)
         save()
+        Task {
+            if let exchange = await StockExchange.lookup([item.isin])[item.isin],
+               let i = items.firstIndex(where: { $0.isin == item.isin }) {
+                items[i].exchange = exchange
+            }
+        }
         Task {
             if let q = try? await StockFetcher.fetch(item) { quotes[q.isin] = q }
         }

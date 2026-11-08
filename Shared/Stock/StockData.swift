@@ -27,11 +27,14 @@ struct WatchItem: Codable, Hashable, Identifiable {
     let isin: String
     /// Kurzname, fett in der Zeile (z. B. „MSCI World“).
     var name: String
-    /// Voller Name, grau darunter (z. B. „iShares Core MSCI World“).
+    /// Voller Name (z. B. „iShares Core MSCI World“), zur Info in der Config-App.
     var detail: String
     var kind: AssetKind
     /// Kaufkurs in € pro Stück; entscheidet über Grün oder Rot. Optional.
     var buyIn: Double? = nil
+    /// Börse, an der der Wert hauptsächlich gehandelt wird (zweite Zeile im Widget).
+    /// Wird automatisch über OpenFIGI ermittelt, siehe StockExchange.
+    var exchange: String? = nil
 
     var id: String { isin }
 }
@@ -39,15 +42,15 @@ struct WatchItem: Codable, Hashable, Identifiable {
 enum StockDefaults {
     /// ETFs und Aktien aus dem Trade-Republic-Depot, in der Reihenfolge der App.
     static let watchlist: [WatchItem] = [
-        WatchItem(isin: "IE00B57X3V84", name: "DJ Sustainability", detail: "iShares DJ Global Sustainability Screened", kind: .etf),
-        WatchItem(isin: "US8740541094", name: "Take-Two", detail: "Take-Two Interactive Software", kind: .stock),
-        WatchItem(isin: "IE00B4L5Y983", name: "MSCI World", detail: "iShares Core MSCI World", kind: .etf),
-        WatchItem(isin: "US67066G1040", name: "NVIDIA", detail: "NVIDIA Corp.", kind: .stock),
-        WatchItem(isin: "IE000I8KRLL9", name: "Semiconductors", detail: "iShares MSCI Global Semiconductors", kind: .etf),
-        WatchItem(isin: "IE00B5BMR087", name: "S&P 500", detail: "iShares Core S&P 500", kind: .etf),
-        WatchItem(isin: "IE00BK5BQT80", name: "FTSE All-World", detail: "Vanguard FTSE All-World", kind: .etf),
-        WatchItem(isin: "IE00BKM4GZ66", name: "MSCI EM IMI", detail: "iShares Core MSCI EM IMI", kind: .etf),
-        WatchItem(isin: "CA22587M1068", name: "Cresco Labs", detail: "Cresco Labs Inc.", kind: .stock),
+        WatchItem(isin: "IE00B57X3V84", name: "DJ Sustainability", detail: "iShares DJ Global Sustainability Screened", kind: .etf, exchange: "Xetra"),
+        WatchItem(isin: "US8740541094", name: "Take-Two", detail: "Take-Two Interactive Software", kind: .stock, exchange: "NASDAQ"),
+        WatchItem(isin: "IE00B4L5Y983", name: "MSCI World", detail: "iShares Core MSCI World", kind: .etf, exchange: "Xetra"),
+        WatchItem(isin: "US67066G1040", name: "NVIDIA", detail: "NVIDIA Corp.", kind: .stock, exchange: "NASDAQ"),
+        WatchItem(isin: "IE000I8KRLL9", name: "Semiconductors", detail: "iShares MSCI Global Semiconductors", kind: .etf, exchange: "Xetra"),
+        WatchItem(isin: "IE00B5BMR087", name: "S&P 500", detail: "iShares Core S&P 500", kind: .etf, exchange: "Xetra"),
+        WatchItem(isin: "IE00BK5BQT80", name: "FTSE All-World", detail: "Vanguard FTSE All-World", kind: .etf, exchange: "Xetra"),
+        WatchItem(isin: "IE00BKM4GZ66", name: "MSCI EM IMI", detail: "iShares Core MSCI EM IMI", kind: .etf, exchange: "Xetra"),
+        WatchItem(isin: "CA22587M1068", name: "Cresco Labs", detail: "Cresco Labs Inc.", kind: .stock, exchange: "CSE"),
     ]
 
     /// Lesbare Namen für bekannte ETFs statt der L&S-Kürzel („ISHSIII-CORE MSCI WLD DLA“).
@@ -90,8 +93,22 @@ enum StockStore {
         SharedStore.load([WatchItem].self, key: key) ?? StockDefaults.watchlist
     }
 
-    static func save(_ items: [WatchItem]) {
-        SharedStore.save(items, key: key, reloading: kind)
+    static func save(_ items: [WatchItem], reload: Bool = true) {
+        SharedStore.save(items, key: key, reloading: kind, reload: reload)
+    }
+
+    /// Ergänzt fehlende Börsen über OpenFIGI. Gibt die Liste unverändert zurück,
+    /// wenn nichts fehlt oder der Dienst nicht erreichbar ist.
+    static func fillingExchanges(_ items: [WatchItem]) async -> [WatchItem] {
+        let missing = items.filter { $0.exchange == nil }.map(\.isin)
+        guard !missing.isEmpty else { return items }
+        let found = await StockExchange.lookup(missing)
+        guard !found.isEmpty else { return items }
+        return items.map { item in
+            var item = item
+            if item.exchange == nil { item.exchange = found[item.isin] }
+            return item
+        }
     }
 }
 
@@ -131,6 +148,7 @@ struct StockQuote: Identifiable, Hashable {
     let isin: String
     let name: String
     let detail: String
+    let exchange: String?
     let kind: AssetKind
     let price: Double
     /// Vergleichskurs: Vortagesschluss bzw. Kurs zu Beginn des Zeitraums.
@@ -308,6 +326,7 @@ enum StockFetcher {
             isin: item.isin,
             name: item.name,
             detail: item.detail,
+            exchange: item.exchange,
             kind: item.kind,
             price: last.price,
             reference: reference,
@@ -350,16 +369,16 @@ enum StockFetcher {
 
     static let sample = WatchResult(
         quotes: [
-            StockQuote(isin: "IE00B4L5Y983", name: "MSCI World", detail: "iShares Core MSCI World", kind: .etf,
+            StockQuote(isin: "IE00B4L5Y983", name: "MSCI World", detail: "iShares Core MSCI World", exchange: "Xetra", kind: .etf,
                        price: 126.78, reference: 125.90, buyIn: 98.50,
                        points: [125.9, 126.1, 125.8, 126.3, 126.5, 126.4, 126.78], updated: .now),
-            StockQuote(isin: "US67066G1040", name: "NVIDIA", detail: "NVIDIA Corp.", kind: .stock,
+            StockQuote(isin: "US67066G1040", name: "NVIDIA", detail: "NVIDIA Corp.", exchange: "NASDAQ", kind: .stock,
                        price: 170.14, reference: 169.34, buyIn: 182.00,
                        points: [169.3, 169.9, 169.5, 170.4, 170.0, 170.14], updated: .now),
-            StockQuote(isin: "IE00B5BMR087", name: "S&P 500", detail: "iShares Core S&P 500", kind: .etf,
+            StockQuote(isin: "IE00B5BMR087", name: "S&P 500", detail: "iShares Core S&P 500", exchange: "Xetra", kind: .etf,
                        price: 642.10, reference: 636.55, buyIn: 540.00,
                        points: [636.5, 638.0, 637.2, 640.4, 641.0, 642.1], updated: .now),
-            StockQuote(isin: "IE00BKM4GZ66", name: "MSCI EM IMI", detail: "iShares Core MSCI EM IMI", kind: .etf,
+            StockQuote(isin: "IE00BKM4GZ66", name: "MSCI EM IMI", detail: "iShares Core MSCI EM IMI", exchange: "Xetra", kind: .etf,
                        price: 39.12, reference: 39.40, buyIn: nil,
                        points: [39.4, 39.3, 39.35, 39.2, 39.1, 39.12], updated: .now),
         ],

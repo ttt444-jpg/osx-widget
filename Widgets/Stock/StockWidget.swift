@@ -116,7 +116,13 @@ struct StockProvider: AppIntentTimelineProvider {
     }
 
     private func load(_ config: StockConfigIntent) async -> StockEntry {
-        let items = StockStore.load().filter { config.filter.matches($0.kind) }
+        // Fehlende Börsen (z. B. Einträge aus älteren Versionen) einmalig ergänzen.
+        var all = StockStore.load()
+        if all.contains(where: { $0.exchange == nil }) {
+            let filled = await StockStore.fillingExchanges(all)
+            if filled != all { StockStore.save(filled, reload: false); all = filled }
+        }
+        let items = all.filter { config.filter.matches($0.kind) }
         var result = await StockFetcher.fetchAll(items, period: config.period)
         if config.sortByGain {
             result = WatchResult(
@@ -186,7 +192,7 @@ struct StockEntryView: View {
 
 /// Eine Zeile wie in der Aktien-App:
 /// ▼ Name           ~~Kurve~~      ± seit Kauf %
-///   voller Name                        Kurs €
+///   Börse                              Kurs €
 /// Prozent und Grün/Rot beziehen sich auf den Kaufkurs (ohne Kaufkurs: auf den Vergleichskurs).
 struct StockRow: View {
     let q: StockQuote
@@ -200,7 +206,7 @@ struct StockRow: View {
                         .font(.system(size: 14, weight: .semibold))
                         .lineLimit(1)
                 }
-                Text(q.detail)
+                Text(q.exchange ?? q.detail)
                     .font(.system(size: 11))
                     .foregroundStyle(Theme.muted)
                     .lineLimit(1)

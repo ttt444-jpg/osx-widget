@@ -21,10 +21,12 @@ enum SharedStore {
     }
 
     /// Speichert und lädt die Widgets der Art `kind` neu (oder alle, wenn `nil`).
-    static func save<T: Encodable>(_ value: T, key: String, reloading kind: String? = nil) {
+    /// `reload: false` nur aus dem Widget selbst, damit es sich nicht erneut anstößt.
+    static func save<T: Encodable>(_ value: T, key: String, reloading kind: String? = nil, reload: Bool = true) {
         if let data = try? JSONEncoder().encode(value) {
             defaults.set(data, forKey: key)
         }
+        guard reload else { return }
         if let kind {
             WidgetCenter.shared.reloadTimelines(ofKind: kind)
         } else {

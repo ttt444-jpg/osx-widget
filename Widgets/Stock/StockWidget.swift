@@ -71,18 +71,48 @@ struct StockProvider: AppIntentTimelineProvider {
 
     func timeline(for configuration: StockConfigIntent, in context: Context) async -> Timeline<StockEntry> {
         let entry = await load(configuration)
-        // Während der Handelszeit alle 15 Minuten, sonst stündlich. macOS kann das strecken.
-        let busy = entry.result.quotes.isEmpty || Self.marketOpen(.now)
-        let next = Date().addingTimeInterval(busy ? 15 * 60 : 60 * 60)
+        let now = Date()
+        let next: Date
+        if entry.result.quotes.isEmpty || Self.marketOpen(now) {
+            // Handelszeit (oder Fehler): alle 15 Minuten. macOS kann das strecken.
+            next = now.addingTimeInterval(15 * 60)
+        } else {
+            // Sonst stündlich, aber spätestens zur nächsten Börseneröffnung.
+            next = min(now.addingTimeInterval(60 * 60), Self.nextOpen(after: now))
+        }
         return Timeline(entries: [entry], policy: .after(next))
     }
 
-    /// Handelszeit bei Lang & Schwarz für Trade Republic: Mo–Fr 7:30–23:00.
+    /// Xetra-Handelszeit der iShares-ETFs: Mo–Fr 9:00–17:30 Uhr deutscher Zeit.
+    private static let openMinute = 9 * 60
+    private static let closeMinute = 17 * 60 + 30
+
+    private static var berlin: Calendar {
+        var cal = Calendar(identifier: .gregorian)
+        cal.timeZone = TimeZone(identifier: "Europe/Berlin") ?? .current
+        return cal
+    }
+
     static func marketOpen(_ date: Date) -> Bool {
-        let cal = Calendar(identifier: .gregorian)
-        let weekday = cal.component(.weekday, from: date)  // 1 = Sonntag
-        let hour = cal.component(.hour, from: date)
-        return (2...6).contains(weekday) && (7..<23).contains(hour)
+        let cal = berlin
+        let weekday = cal.component(.weekday, from: date)  // 1 = Sonntag, 7 = Samstag
+        let c = cal.dateComponents([.hour, .minute], from: date)
+        let minute = (c.hour ?? 0) * 60 + (c.minute ?? 0)
+        return (2...6).contains(weekday) && minute >= openMinute && minute < closeMinute
+    }
+
+    /// Nächster Handelsbeginn (Mo–Fr 9:00) nach `date`.
+    static func nextOpen(after date: Date) -> Date {
+        let cal = berlin
+        var day = cal.startOfDay(for: date)
+        for _ in 0..<8 {
+            if let open = cal.date(byAdding: .minute, value: openMinute, to: day),
+               open > date, (2...6).contains(cal.component(.weekday, from: open)) {
+                return open
+            }
+            day = cal.date(byAdding: .day, value: 1, to: day) ?? date.addingTimeInterval(86_400)
+        }
+        return date.addingTimeInterval(60 * 60)
     }
 
     private func load(_ config: StockConfigIntent) async -> StockEntry {

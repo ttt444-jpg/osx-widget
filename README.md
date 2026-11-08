@@ -104,6 +104,6 @@ Zeigt Kurse deiner ETFs und Aktien. Die Kurse kommen von **Lang & Schwarz**, dem
 | Groß | 9 Werte mit Tagesverlauf |
 
 Hinweise:
-- Das Widget aktualisiert sich zur Handelszeit (Mo–Fr 7–23 Uhr) etwa alle 15 Minuten, sonst stündlich. macOS kann das strecken.
+- Das Widget aktualisiert sich zur Xetra-Handelszeit der iShares-ETFs (Mo–Fr 9:00–17:30 Uhr) etwa alle 15 Minuten, sonst stündlich und pünktlich zur Eröffnung um 9:00. Änderungen in der Config-App laden es sofort neu. macOS kann die Intervalle strecken.
 - Der Kaufkurs bleibt lokal auf deinem Mac (App Group) und wird nirgends hin übertragen.
 - Die L&S-Schnittstelle ist nicht offiziell dokumentiert. Ändert sie sich, muss `StockFetcher` in `Shared/Stock/StockData.swift` angepasst werden.

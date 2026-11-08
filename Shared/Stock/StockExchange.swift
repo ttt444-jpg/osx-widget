@@ -1,6 +1,6 @@
 import Foundation
 
-/// Ermittelt die Börse, an der ein Wert hauptsächlich gehandelt wird (zweite Zeile im Widget).
+/// Ermittelt Börse und (bei ETFs) Anbieter für die zweite Zeile im Widget, z. B. „iShares · Xetra“.
 ///
 /// Quelle: OpenFIGI (Bloomberg), kostenlos und ohne Key. Liefert zu einer ISIN die
 /// Kürzel aller Handelsplätze; daraus wird die Heimatbörse abgeleitet:
@@ -15,7 +15,10 @@ enum StockExchange {
     }
 
     private struct Response: Decodable {
-        struct Listing: Decodable { let exchCode: String? }
+        struct Listing: Decodable {
+            let exchCode: String?
+            let name: String?
+        }
         let data: [Listing]?
     }
 
@@ -37,9 +40,15 @@ enum StockExchange {
         return order.first { codes.contains($0.0) }?.1
     }
 
-    /// ISIN → Börse für mehrere Werte (OpenFIGI erlaubt 10 pro Anfrage ohne Key).
-    static func lookup(_ isins: [String]) async -> [String: String] {
-        var result: [String: String] = [:]
+    struct Info {
+        let exchange: String?
+        /// Alle Namen des Werts bei OpenFIGI, z. B. „ISHARES CORE MSCI WORLD“.
+        let names: [String]
+    }
+
+    /// ISIN → Börse und Namen für mehrere Werte (OpenFIGI erlaubt 10 pro Anfrage ohne Key).
+    static func lookup(_ isins: [String]) async -> [String: Info] {
+        var result: [String: Info] = [:]
         for start in stride(from: 0, to: isins.count, by: 10) {
             let batch = Array(isins[start..<min(start + 10, isins.count)])
             var request = URLRequest(url: url, timeoutInterval: 15)
@@ -50,10 +59,39 @@ enum StockExchange {
                   let responses = try? JSONDecoder().decode([Response].self, from: data)
             else { continue }
             for (isin, response) in zip(batch, responses) {
-                let codes = Set((response.data ?? []).compactMap(\.exchCode))
-                if let name = name(isin: isin, codes: codes) { result[isin] = name }
+                let listings = response.data ?? []
+                guard !listings.isEmpty else { continue }
+                let codes = Set(listings.compactMap(\.exchCode))
+                result[isin] = Info(exchange: name(isin: isin, codes: codes),
+                                    names: Array(Set(listings.compactMap(\.name))))
             }
         }
         return result
+    }
+
+    // MARK: - Anbieter (nur ETFs)
+
+    /// Namensanfänge → Anbieter. Geprüft wird in Großbuchstaben, längere Muster zuerst.
+    private static let providers: [(String, String)] = [
+        ("ISHARES", "iShares"), ("ISHS", "iShares"), ("ISH ", "iShares"), ("ISHSII", "iShares"),
+        ("VANGUARD", "Vanguard"), ("VANG", "Vanguard"),
+        ("XTRACKERS", "Xtrackers"), ("DB X-TRACKERS", "Xtrackers"), ("XTR", "Xtrackers"),
+        ("X(", "Xtrackers"), ("X ", "Xtrackers"),
+        ("SPDR", "SPDR"), ("SS SPDR", "SPDR"),
+        ("AMUNDI", "Amundi"), ("LYXOR", "Amundi"), ("AM.", "Amundi"), ("MUL AMUN", "Amundi"),
+        ("INVESCO", "Invesco"), ("UBS", "UBS"), ("WISDOMTREE", "WisdomTree"), ("VANECK", "VanEck"),
+        ("HSBC", "HSBC"), ("L&G", "L&G"), ("LEGAL & GENERAL", "L&G"), ("FRANKLIN", "Franklin"),
+        ("JPM", "J.P. Morgan"), ("JPMORGAN", "J.P. Morgan"), ("GLOBAL X", "Global X"),
+        ("FIDELITY", "Fidelity"), ("DWS", "DWS"), ("DEKA", "Deka"), ("COMSTAGE", "Amundi"),
+    ]
+
+    /// Anbieter aus einem der Namen, z. B. „iShares Core MSCI World“ → „iShares“.
+    static func provider(from names: [String]) -> String? {
+        let sorted = providers.sorted { $0.0.count > $1.0.count }
+        for name in names {
+            let upper = name.uppercased()
+            if let hit = sorted.first(where: { upper.hasPrefix($0.0) }) { return hit.1 }
+        }
+        return nil
     }
 }

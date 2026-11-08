@@ -69,7 +69,7 @@ struct StockSettingsView: View {
                     HStack(spacing: 10) {
                         Image(systemName: "line.3.horizontal").foregroundStyle(.tertiary)
                         StockKindBadge(kind: item.kind, label: item.kind.title)
-                        // Name = fette erste Zeile im Widget, Börse = graue zweite Zeile (automatisch).
+                        // Name = fette erste Zeile im Widget, Anbieter · Börse = graue zweite Zeile (automatisch).
                         VStack(alignment: .leading, spacing: 3) {
                             TextField("Name", text: $item.name, prompt: Text("Name im Widget"))
                                 .textFieldStyle(.roundedBorder)
@@ -79,10 +79,10 @@ struct StockSettingsView: View {
                                 .font(.caption)
                                 .foregroundStyle(.secondary)
                                 .lineLimit(1)
-                            Text("\(item.exchange ?? "Börse wird ermittelt …") · \(item.isin)")
+                            Text("\(item.subtitle ?? "Börse wird ermittelt …") · \(item.isin)")
                                 .font(.caption2.monospaced())
                                 .foregroundStyle(.secondary)
-                                .help("Börse: zweite Zeile im Widget, automatisch über OpenFIGI ermittelt")
+                                .help("Zweite Zeile im Widget: Anbieter (bei ETFs) und Börse, automatisch ermittelt")
                         }
                         .frame(maxWidth: .infinity, alignment: .leading)
                         VStack(alignment: .trailing, spacing: 2) {
@@ -177,9 +177,9 @@ struct StockSettingsView: View {
         items.append(item)
         save()
         Task {
-            if let exchange = await StockExchange.lookup([item.isin])[item.isin],
-               let i = items.firstIndex(where: { $0.isin == item.isin }) {
-                items[i].exchange = exchange
+            let filled = await StockStore.fillingExchanges([item])
+            if let updated = filled.first, let i = items.firstIndex(where: { $0.isin == item.isin }) {
+                items[i] = updated
             }
         }
         Task {

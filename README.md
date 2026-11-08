@@ -75,14 +75,14 @@ Zeigt Kurse deiner ETFs und Aktien. Die Kurse kommen von **Lang & Schwarz**, dem
 - **Löschen:** auf 🗑 klicken, per Rechtsklick → *Entfernen* oder mit der Entf-Taste
 - **Sortieren:** Zeilen per Drag & Drop verschieben
 - **Umbenennen:** im Feld „Name“ tippen (fette erste Zeile im Widget)
-- **Börse:** wird automatisch ermittelt (zweite Zeile im Widget), z. B. Xetra, NASDAQ, NYSE, CSE
+- **Zweite Zeile im Widget:** wird automatisch ermittelt. Bei ETFs Anbieter und Börse („iShares · Xetra“), bei Aktien die Börse („NASDAQ“)
 - **Standardliste:** stellt die Werte aus dem Trade-Republic-Depot wieder her
 
 **Jede Zeile im Widget:**
 
 ```
 ▲ MSCI World           ~~Tagesverlauf~~      +28,71 %
-  Xetra                                     126,78 €
+  iShares · Xetra                           126,78 €
 ```
 
 - **Kurve:** standardmäßig der Tagesverlauf, umstellbar am Widget (1 Woche bis 5 Jahre). Die gestrichelte Linie zeigt den Vergleichskurs: Vortagesschluss bzw. Kurs zu Beginn des Zeitraums.
@@ -107,5 +107,5 @@ Zeigt Kurse deiner ETFs und Aktien. Die Kurse kommen von **Lang & Schwarz**, dem
 Hinweise:
 - Das Widget aktualisiert sich zur Xetra-Handelszeit der iShares-ETFs (Mo–Fr 9:00–17:30 Uhr) etwa alle 15 Minuten, sonst stündlich und pünktlich zur Eröffnung um 9:00. Änderungen in der Config-App laden es sofort neu. macOS kann die Intervalle strecken.
 - Der Kaufkurs bleibt lokal auf deinem Mac (App Group) und wird nirgends hin übertragen.
-- Die Börse kommt von [OpenFIGI](https://www.openfigi.com) (Bloomberg, ohne Key). Abgefragt wird nur die ISIN, und nur einmal pro Wert. Regeln in `Shared/Stock/StockExchange.swift`.
+- Börse und ETF-Anbieter kommen von [OpenFIGI](https://www.openfigi.com) (Bloomberg, ohne Key). Abgefragt wird nur die ISIN, und nur einmal pro Wert. Regeln in `Shared/Stock/StockExchange.swift`.
 - Die L&S-Schnittstelle ist nicht offiziell dokumentiert. Ändert sie sich, muss `StockFetcher` in `Shared/Stock/StockData.swift` angepasst werden.

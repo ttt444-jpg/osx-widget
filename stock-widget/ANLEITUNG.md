@@ -1,9 +1,9 @@
-# Depot-Kurse: macOS-Widget für ETFs und Aktien
+# Stock-Widget: macOS-Widget für ETFs und Aktien
 
 Zeigt die Kurse deiner Trade-Republic-Werte als Desktop-Widget. Die Kurse kommen von **Lang & Schwarz**, dem Handelsplatz von Trade Republic. Es gibt keinen Login und keinen API-Key, und das Widget kennt dein Depot nicht. Es zeigt nur die Werte, die du in die Liste einträgst.
 
 ```
-etf/
+stock-widget/
 ├── project.yml              ← XcodeGen-Projekt (App + Widget, gemeinsame App Group)
 ├── App/WatchApp.swift       ← Watchlist verwalten: suchen, hinzufügen, löschen, sortieren
 ├── Widget/WatchWidget.swift ← das Widget (klein / mittel / groß)
@@ -16,18 +16,18 @@ Voraussetzung: **Xcode** aus dem App Store, einmal gestartet, mit deiner Apple-I
 
 ```bash
 brew install xcodegen
-cd ~/Documents/repos/osx-widget/etf
+cd ~/Documents/repos/osx-widget/stock-widget
 xcodegen generate
-open ETFWatch.xcodeproj
+open StockWidget.xcodeproj
 ```
 
-1. In Xcode für **beide** Targets (`ETFWatch` und `ETFWatchWidget`) unter *Signing & Capabilities* dein **Team** wählen. Die App Group (`<TeamID>.de.thomasdobler.depotkurse`) wird dann automatisch eingerichtet.
-2. Scheme **ETFWatch**, Ziel **My Mac**, dann **⌘R**.
-3. Dauerhaft installieren: *Product → Archive → Distribute App → Custom → Copy App*, dann `Depot-Kurse.app` nach **/Programme** ziehen und einmal starten.
+1. In Xcode für **beide** Targets (`StockWidget` und `StockWidgetExtension`) unter *Signing & Capabilities* dein **Team** wählen. Die App Group (`<TeamID>.de.thomasdobler.stockwidget`) wird dann automatisch eingerichtet.
+2. Scheme **StockWidget**, Ziel **My Mac**, dann **⌘R**.
+3. Dauerhaft installieren: *Product → Archive → Distribute App → Custom → Copy App*, dann `Stock-Widget.app` nach **/Programme** ziehen und einmal starten.
 
 ## Benutzen
 
-**Werte verwalten (App „Depot-Kurse“):**
+**Werte verwalten (App „Stock-Widget“):**
 - **Hinzufügen:** oben nach Name, ISIN oder WKN suchen, dann auf **+ Hinzufügen** klicken
 - **Löschen:** auf 🗑 klicken, per Rechtsklick → *Entfernen* oder mit der Entf-Taste
 - **Sortieren:** Zeilen per Drag & Drop verschieben
@@ -36,9 +36,9 @@ open ETFWatch.xcodeproj
 
 Jede Änderung landet sofort im Widget.
 
-**Widget hinzufügen:** Rechtsklick auf den Schreibtisch → *Widgets bearbeiten* → **Depot-Kurse** → Größe wählen.
+**Widget hinzufügen:** Rechtsklick auf den Schreibtisch → *Widgets bearbeiten* → **Stock-Widget** → Größe wählen.
 
-**Widget einstellen** (Rechtsklick auf das Widget → *„Depot-Kurse“ bearbeiten*):
+**Widget einstellen** (Rechtsklick auf das Widget → *„Stock-Widget“ bearbeiten*):
 
 | Option | Werte |
 |---|---|

@@ -4,7 +4,7 @@ import WidgetKit
 @main
 struct WatchApp: App {
     var body: some Scene {
-        WindowGroup("Depot-Kurse") {
+        WindowGroup("Stock-Widget") {
             ContentView()
                 .frame(width: 560, height: 680)
         }
@@ -24,9 +24,9 @@ struct ContentView: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: 12) {
-            Text("Depot-Kurse")
+            Text("Stock-Widget")
                 .font(.title2.weight(.semibold))
-            Text("Widget hinzufügen: Rechtsklick auf den Schreibtisch → „Widgets bearbeiten“ → Depot-Kurse. Zeitraum, Filter und € oder % stellst du per Rechtsklick auf das Widget ein.")
+            Text("Widget hinzufügen: Rechtsklick auf den Schreibtisch → „Widgets bearbeiten“ → Stock-Widget. Zeitraum, Filter und € oder % stellst du per Rechtsklick auf das Widget ein.")
                 .font(.callout)
                 .foregroundStyle(.secondary)
                 .fixedSize(horizontal: false, vertical: true)

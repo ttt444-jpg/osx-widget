@@ -4,7 +4,7 @@ import SwiftUI
 import WidgetKit
 
 // MARK: - Einstellungen (Rechtsklick auf das Widget → „Widget bearbeiten“)
-// Welche Werte drin sind, verwaltest du in der App „Depot-Kurse“.
+// Welche Werte drin sind, verwaltest du in der App „Stock-Widget“.
 
 extension Period: AppEnum {
     static var typeDisplayRepresentation: TypeDisplayRepresentation = "Zeitraum"
@@ -48,8 +48,8 @@ enum ChangeStyle: String, AppEnum {
 }
 
 struct WatchConfigIntent: WidgetConfigurationIntent {
-    static var title: LocalizedStringResource = "Depot-Kurse"
-    static var description = IntentDescription("Werte hinzufügen oder löschen: App „Depot-Kurse“ öffnen.")
+    static var title: LocalizedStringResource = "Stock-Widget"
+    static var description = IntentDescription("Werte hinzufügen oder löschen: App „Stock-Widget“ öffnen.")
 
     @Parameter(title: "Anzeigen", default: .all)
     var filter: KindFilter
@@ -122,14 +122,14 @@ struct WatchWidgetBundle: WidgetBundle {
 }
 
 struct WatchWidget: Widget {
-    let kind = "DepotKurseWidget"
+    let kind = "StockWidget"
 
     var body: some WidgetConfiguration {
         AppIntentConfiguration(kind: kind, intent: WatchConfigIntent.self, provider: Provider()) { entry in
             EntryView(entry: entry)
                 .containerBackground(for: .widget) { Theme.bg }
         }
-        .configurationDisplayName("Depot-Kurse")
+        .configurationDisplayName("Stock-Widget")
         .description("Kurse deiner ETFs und Aktien, wie bei Trade Republic (Lang & Schwarz).")
         .supportedFamilies([.systemSmall, .systemMedium, .systemLarge])
     }
@@ -306,14 +306,14 @@ struct ErrorView: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: 6) {
-            Text("Depot-Kurse")
+            Text("Stock-Widget")
                 .font(.system(size: 13, weight: .semibold))
             Spacer(minLength: 0)
             Text(entry.total == 0 ? "Keine Werte" : "Keine Kurse")
                 .font(.system(size: 15, weight: .semibold))
                 .foregroundStyle(Theme.red)
             Text(entry.total == 0
-                 ? "Öffne die App „Depot-Kurse“ und füge ETFs oder Aktien hinzu."
+                 ? "Öffne die App „Stock-Widget“ und füge ETFs oder Aktien hinzu."
                  : "Lang & Schwarz nicht erreichbar. Neuer Versuch in 15 Minuten.")
                 .font(.system(size: 11))
                 .foregroundStyle(Theme.muted)

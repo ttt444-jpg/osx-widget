@@ -4,7 +4,7 @@ Eine Sammlung nativer macOS-Desktop-Widgets (SwiftUI + WidgetKit) und **eine Con
 
 | Widget | Zeigt | Einstellungen |
 |---|---|---|
-| **Stock** | ETF- und Aktienkurse wie bei Trade Republic (Kurse von Lang & Schwarz) | Watchlist in der Config-App · Zeitraum, Filter, €/% am Widget |
+| **Stock** | ETF- und Aktienkurse wie bei Trade Republic (Kurse von Lang & Schwarz), Gewinn/Verlust seit Kauf | Watchlist und Kaufkurse in der Config-App · Filter und Sortierung am Widget |
 
 ## Aufbau
 
@@ -60,7 +60,7 @@ Beispiel „Wetter“:
 Konventionen:
 - Typnamen mit Widget-Präfix (`WeatherRow`, `WeatherProvider`), weil alle Widgets in einem Modul liegen.
 - Schlüssel im `SharedStore` mit Präfix (`weather.…`).
-- Was für alle Instanzen gilt (Listen, Zugangsdaten), gehört in die Config-App. Was pro Widget-Instanz verschieden sein darf (Zeitraum, Filter), gehört in den `WidgetConfigurationIntent`.
+- Was für alle Instanzen gilt (Listen, Zugangsdaten), gehört in die Config-App. Was pro Widget-Instanz verschieden sein darf (z. B. Filter), gehört in den `WidgetConfigurationIntent`.
 
 ---
 
@@ -70,29 +70,38 @@ Zeigt Kurse deiner ETFs und Aktien. Die Kurse kommen von **Lang & Schwarz**, dem
 
 **Watchlist** (Config-App → Stock):
 - **Hinzufügen:** nach Name, ISIN oder WKN suchen, dann auf **+ Hinzufügen** klicken
+- **Kaufkurs:** pro Wert in € pro Stück eintragen. Er entscheidet über Grün oder Rot.
 - **Löschen:** auf 🗑 klicken, per Rechtsklick → *Entfernen* oder mit der Entf-Taste
 - **Sortieren:** Zeilen per Drag & Drop verschieben
 - **Umbenennen:** auf den Namen klicken und tippen
 - **Standardliste:** stellt die Werte aus dem Trade-Republic-Depot wieder her
+
+**Jede Zeile im Widget:**
+
+```
+▲ MSCI World           ~~Tagesverlauf~~      126,78 €
+  iShares Core MSCI World                   +28,28 €
+```
+
+- **Kurve:** der Tagesverlauf. Die gestrichelte Linie zeigt den Schlusskurs vom Vortag.
+- **Rechts oben:** aktueller Kurs in €
+- **Rechts unten:** Gewinn oder Verlust pro Stück seit Kauf in €
+- **Farbe** von Pfeil, Kurve und Betrag: grün über dem Kaufkurs, rot darunter. Ohne Kaufkurs gilt die Veränderung zum Vortag.
 
 **Am Widget** (Rechtsklick → bearbeiten):
 
 | Option | Werte |
 |---|---|
 | Anzeigen | Alle · Nur ETFs · Nur Aktien |
-| Zeitraum | Heute · 1 Woche · 1 Monat · Seit Jahresbeginn · 1 Jahr · 5 Jahre |
-| Veränderung | in Euro · in Prozent |
-| Nach Veränderung sortieren | an/aus |
+| Nach Gewinn sortieren | an/aus (größter Gewinn seit Kauf oben) |
 
 | Größe | Inhalt |
 |---|---|
-| Klein | 4 Werte: Name, Kurs, Veränderung |
-| Mittel | 4 Werte mit Chart |
-| Groß | 9 Werte mit Chart |
-
-Jede Zeile zeigt: ▲/▼, Kurzname, voller Name, Chart mit gestrichelter Linie beim Vergleichskurs, Kurs und Veränderung.
+| Klein | 4 Werte: Name, Kurs, Gewinn/Verlust |
+| Mittel | 4 Werte mit Tagesverlauf |
+| Groß | 9 Werte mit Tagesverlauf |
 
 Hinweise:
 - Das Widget aktualisiert sich zur Handelszeit (Mo–Fr 7–23 Uhr) etwa alle 15 Minuten, sonst stündlich. macOS kann das strecken.
-- Trade Republic zeigt die Rendite **seit Kauf**. Das Widget zeigt die Veränderung im gewählten Zeitraum.
+- Der Kaufkurs bleibt lokal auf deinem Mac (App Group) und wird nirgends hin übertragen.
 - Die L&S-Schnittstelle ist nicht offiziell dokumentiert. Ändert sie sich, muss `StockFetcher` in `Shared/Stock/StockData.swift` angepasst werden.

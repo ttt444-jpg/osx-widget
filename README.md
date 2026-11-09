@@ -13,10 +13,12 @@ osx-widget/
 ├── project.yml                 ← ein Xcode-Projekt (XcodeGen) für alles
 ├── ConfigApp/                  ← die Config-App „OSX Widgets“
 │   ├── ConfigApp.swift         ← Fenster mit Seitenleiste + Widget-Verzeichnis (WidgetModule.all)
+│   ├── Assets.xcassets         ← App-Icon (erzeugt von Tools/make-app-icon.swift)
 │   └── Stock/StockSettingsView.swift
 ├── Widgets/                    ← eine Widget-Extension mit allen Widgets
 │   ├── WidgetsBundle.swift     ← Liste aller Widgets
 │   └── Stock/StockWidget.swift
+├── Tools/make-app-icon.swift   ← zeichnet das App-Icon neu: swift Tools/make-app-icon.swift
 └── Shared/                     ← wird in App und Extension kompiliert
     ├── Core/                   ← gemeinsamer Speicher (App Group), Farben
     └── Stock/StockData.swift   ← Datenmodell, Kursabruf, Formatierung
